@@ -5,6 +5,11 @@ const body = document.body, say = $("say"), sr = $("sr"), pw = $("pw"), chip = $
 const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const sleep = (ms) => new Promise((r) => setTimeout(r, RM ? Math.min(ms, 80) : ms));
 const MAX = 300 * 1024 * 1024;
+const counter = $("count");
+const showCount = (n) => { if (typeof n !== "number") return; counter.textContent = "files taken: " + n.toLocaleString("en-US"); counter.hidden = false; };
+const countCall = (opts) => fetch("/api/count", opts).then((r) => (r.ok ? r.json() : null)).then((d) => d && showCount(d.count)).catch(() => {});
+const loadCount = () => countCall();
+const bump = () => countCall({ method: "POST" });
 const HINT = "drop a file on the hand, or tap it";
 let busy = false, token = 0, lastUrl = null, depth = 0;
 
@@ -108,6 +113,7 @@ async function run(f) {
   out.href = lastUrl; out.download = result.name;
   out.textContent = result.name + "  " + fmt(result.blob.size);
   out.hidden = false;
+  if (encrypting) bump();
   flyIn(out);
   download(lastUrl, result.name);
   speak("here.");
@@ -144,3 +150,4 @@ if (!RM) addEventListener("pointermove", (e) => {
 });
 
 speak(HINT, true);
+loadCount();
