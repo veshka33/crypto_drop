@@ -1,108 +1,146 @@
 "use strict";
-const MAGIC = new TextEncoder().encode("VSENC1");
-const SALT_LEN = 16, IV_LEN = 12, ITER = 600000, MAX = 500 * 1024 * 1024;
 const $ = (id) => document.getElementById(id);
-const drop = $("drop"), input = $("file"), panel = $("panel"), status = $("status");
-const pw = $("pw"), pw2 = $("pw2"), go = $("go"), confirmBox = $("confirmBox");
-let file = null, mode = "encrypt";
+const body = document.body, say = $("say"), sr = $("sr"), pw = $("pw"), chip = $("chip"),
+  out = $("out"), fileInput = $("file"), hand = $("hand"), eyes = $("eyes");
+const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const sleep = (ms) => new Promise((r) => setTimeout(r, RM ? Math.min(ms, 80) : ms));
+const MAX = 300 * 1024 * 1024;
+const HINT = "drop a file on the hand, or tap it";
+let busy = false, token = 0, lastUrl = null, depth = 0;
 
-const fmt = (n) => n < 1024 ? n + " Б" : n < 1048576 ? (n / 1024).toFixed(1) + " КБ" : (n / 1048576).toFixed(1) + " МБ";
-const say = (t, cls = "") => { status.textContent = t; status.className = cls; };
+const setState = (s) => { body.dataset.state = s; };
+const fmt = (n) => n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFixed(1) + " KB" : (n / 1048576).toFixed(1) + " MB";
 
-async function deriveKey(password, salt) {
-  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
-  return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: ITER, hash: "SHA-256" },
-    base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
-}
-
-async function encrypt(f, password) {
-  const nameBytes = new TextEncoder().encode(f.name).slice(0, 65535);
-  const data = new Uint8Array(await f.arrayBuffer());
-  const payload = new Uint8Array(2 + nameBytes.length + data.length);
-  new DataView(payload.buffer).setUint16(0, nameBytes.length);
-  payload.set(nameBytes, 2);
-  payload.set(data, 2 + nameBytes.length);
-  const salt = crypto.getRandomValues(new Uint8Array(SALT_LEN));
-  const iv = crypto.getRandomValues(new Uint8Array(IV_LEN));
-  const key = await deriveKey(password, salt);
-  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: MAGIC }, key, payload));
-  const out = new Uint8Array(MAGIC.length + SALT_LEN + IV_LEN + ct.length);
-  out.set(MAGIC, 0); out.set(salt, MAGIC.length); out.set(iv, MAGIC.length + SALT_LEN);
-  out.set(ct, MAGIC.length + SALT_LEN + IV_LEN);
-  return { blob: new Blob([out]), name: f.name + ".enc" };
-}
-
-async function decrypt(f, password) {
-  const buf = new Uint8Array(await f.arrayBuffer());
-  const salt = buf.slice(MAGIC.length, MAGIC.length + SALT_LEN);
-  const iv = buf.slice(MAGIC.length + SALT_LEN, MAGIC.length + SALT_LEN + IV_LEN);
-  const ct = buf.slice(MAGIC.length + SALT_LEN + IV_LEN);
-  const key = await deriveKey(password, salt);
-  const plain = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv, additionalData: MAGIC }, key, ct));
-  const nameLen = new DataView(plain.buffer).getUint16(0);
-  const name = new TextDecoder().decode(plain.slice(2, 2 + nameLen)) || "decrypted";
-  return { blob: new Blob([plain.slice(2 + nameLen)]), name };
-}
-
-function save({ blob, name }) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = name;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
-}
-
-async function pick(f) {
-  say("");
-  if (!f) return;
-  if (f.size > MAX) { say("Файл больше 500 МБ. Выберите файл поменьше.", "err"); return; }
-  const head = new Uint8Array(await f.slice(0, MAGIC.length).arrayBuffer());
-  const encrypted = head.length === MAGIC.length && head.every((b, i) => b === MAGIC[i]);
-  file = f; mode = encrypted ? "decrypt" : "encrypt";
-  $("dropTitle").textContent = f.name;
-  $("dropSub").textContent = fmt(f.size) + (encrypted ? ". Файл будет расшифрован" : ". Файл будет зашифрован");
-  $("shackle").setAttribute("d", encrypted ? "M16 22v-6a8 8 0 0 1 15-4" : "M16 22v-6a8 8 0 0 1 16 0v6");
-  go.textContent = encrypted ? "Расшифровать" : "Зашифровать";
-  confirmBox.hidden = encrypted;
-  pw.value = pw2.value = "";
-  panel.hidden = false;
-  pw.focus();
-}
-
-drop.addEventListener("click", () => input.click());
-drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } });
-input.addEventListener("change", () => { pick(input.files[0]); input.value = ""; });
-["dragenter", "dragover"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("over"); }));
-["dragleave", "drop"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
-drop.addEventListener("drop", (e) => pick(e.dataTransfer.files[0]));
-["dragover", "drop"].forEach((t) => window.addEventListener(t, (e) => e.preventDefault()));
-
-$("toggle").addEventListener("click", (e) => {
-  const show = pw.type === "password";
-  pw.type = pw2.type = show ? "text" : "password";
-  e.target.textContent = show ? "Скрыть" : "Показать";
-});
-
-$("reset").addEventListener("click", () => {
-  file = null; panel.hidden = true; say("");
-  $("dropTitle").textContent = "Перетащите файл сюда";
-  $("dropSub").textContent = "или нажмите, чтобы выбрать";
-  $("shackle").setAttribute("d", "M16 22v-6a8 8 0 0 1 16 0v6");
-});
-
-panel.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  if (!file) return;
-  if (mode === "encrypt") {
-    if (pw.value.length < 8) { say("Пароль должен быть не короче 8 символов.", "err"); return; }
-    if (pw.value !== pw2.value) { say("Пароли не совпадают.", "err"); return; }
+async function speak(text, dim = false) {
+  const my = ++token;
+  sr.textContent = text;
+  say.className = dim ? "dim" : "";
+  say.textContent = "";
+  if (RM || dim) { say.textContent = text; return; }
+  say.classList.add("typing");
+  for (const ch of text) {
+    if (my !== token) return;
+    say.textContent += ch;
+    await sleep(70 + Math.random() * 60);
   }
-  go.disabled = true; say("Обработка…");
-  await new Promise((r) => setTimeout(r, 30));
-  try {
-    save(await (mode === "encrypt" ? encrypt : decrypt)(file, pw.value));
-    say(mode === "encrypt" ? "Готово: файл зашифрован и скачан." : "Готово: файл расшифрован и скачан.", "ok");
-  } catch {
-    say(mode === "decrypt" ? "Неверный пароль или файл повреждён." : "Не удалось обработать файл.", "err");
-  } finally { go.disabled = false; }
+  if (my === token) say.classList.remove("typing");
+}
+
+function ask() {
+  return new Promise((resolve) => {
+    pw.value = ""; pw.tabIndex = 0; pw.classList.add("on"); pw.focus();
+    const onKey = (e) => {
+      if (e.key !== "Enter" || !pw.value) return;
+      pw.removeEventListener("keydown", onKey);
+      pw.classList.remove("on"); pw.tabIndex = -1; pw.blur();
+      resolve(pw.value);
+    };
+    pw.addEventListener("keydown", onKey);
+  });
+}
+
+async function getPassword(encrypting) {
+  for (;;) {
+    await speak("what password?");
+    const a = await ask();
+    if (!encrypting) return a;
+    if (a.length < 8) { await speak("too short. eight characters, at least."); await sleep(900); continue; }
+    await speak("again.");
+    if (a === await ask()) return a;
+    await speak("no. from the start."); await sleep(900);
+  }
+}
+
+function flyIn(el) {
+  if (RM || !el.animate) return;
+  const r = el.getBoundingClientRect(), h = hand.getBoundingClientRect();
+  const dx = h.left + h.width / 2 - (r.left + r.width / 2);
+  const dy = h.top + h.height * 0.35 - (r.top + r.height / 2);
+  el.animate([
+    { transform: `translate(${dx}px,${dy}px) scale(.15) rotate(-18deg)`, opacity: 0 },
+    { opacity: 1, offset: 0.25 },
+    { transform: "none", opacity: 1 }
+  ], { duration: 750, easing: "cubic-bezier(.2,.8,.2,1)" });
+}
+
+function download(url, name) {
+  const a = document.createElement("a");
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+}
+
+async function run(f) {
+  if (busy) return;
+  if (f.size > MAX) {
+    setState("idle"); await speak("too heavy. 300 MB, at most.");
+    await sleep(2500); speak(HINT, true); return;
+  }
+  busy = true;
+  out.hidden = true;
+  if (lastUrl) { URL.revokeObjectURL(lastUrl); lastUrl = null; }
+  const encrypting = !(await Vault.isEncrypted(f));
+  token++; say.textContent = ""; say.className = ""; sr.textContent = "";
+
+  chip.textContent = f.name + "  " + fmt(f.size);
+  chip.className = "chip show";
+  setState("reach"); await sleep(450);
+  setState("grab"); chip.classList.add("eaten"); await sleep(550);
+  setState("gone"); await sleep(1500);
+
+  let result = null;
+  for (;;) {
+    const password = await getPassword(encrypting);
+    token++; say.className = ""; say.textContent = "...";
+    try { result = await (encrypting ? Vault.encrypt : Vault.decrypt)(f, password); break; }
+    catch {
+      if (encrypting) break;
+      await speak("wrong."); await sleep(900);
+    }
+  }
+  chip.className = "chip";
+
+  if (!result) {
+    setState("idle"); await speak("something broke. try again.");
+    busy = false; return;
+  }
+  setState("back"); await sleep(1300);
+  setState("throw"); await sleep(120);
+  lastUrl = URL.createObjectURL(result.blob);
+  out.href = lastUrl; out.download = result.name;
+  out.textContent = result.name + "  " + fmt(result.blob.size);
+  out.hidden = false;
+  flyIn(out);
+  download(lastUrl, result.name);
+  speak("here.");
+  await sleep(500);
+  setState("idle");
+  busy = false;
+}
+
+const hasFiles = (e) => e.dataTransfer && [...e.dataTransfer.types].includes("Files");
+addEventListener("dragenter", (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault(); depth++;
+  if (!busy && depth === 1) { setState("reach"); speak("let go.", true); }
 });
+addEventListener("dragover", (e) => { if (hasFiles(e)) e.preventDefault(); });
+addEventListener("dragleave", (e) => {
+  if (!hasFiles(e)) return;
+  depth = Math.max(0, depth - 1);
+  if (!busy && depth === 0) { setState("idle"); speak(HINT, true); }
+});
+addEventListener("drop", (e) => {
+  e.preventDefault(); depth = 0;
+  if (busy) return;
+  const f = e.dataTransfer && e.dataTransfer.files[0];
+  if (f) run(f); else { setState("idle"); speak(HINT, true); }
+});
+
+hand.addEventListener("click", () => { if (!busy) fileInput.click(); });
+fileInput.addEventListener("change", () => { const f = fileInput.files[0]; fileInput.value = ""; if (f) run(f); });
+
+if (!RM) addEventListener("pointermove", (e) => {
+  const x = e.clientX / innerWidth - 0.5, y = e.clientY / innerHeight - 0.5;
+  eyes.style.transform = `translate(calc(-50% + ${x * 26}px), calc(-50% + ${y * 16}px))`;
+});
+
+speak(HINT, true);
