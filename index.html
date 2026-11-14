@@ -1,45 +1,35 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Шифратор файлов</title>
-<meta name="description" content="Шифрование и расшифровка файлов прямо в браузере. Файл не покидает ваше устройство.">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#000000">
+<title>Drop a file</title>
+<meta name="description" content="Encrypt and decrypt files in your browser. Nothing is uploaded.">
 <link rel="stylesheet" href="style.css">
+<script src="crypto.js" defer></script>
 <script src="app.js" defer></script>
 </head>
-<body>
-<main>
-  <h1>Шифратор файлов</h1>
-  <p class="lead">Шифрует и расшифровывает файлы прямо в браузере. Файл не отправляется на сервер.</p>
+<body data-state="idle">
+<p class="note">Nothing leaves your browser.</p>
+<div class="eyes" id="eyes"><img src="eyes.jpg" alt="" width="400" height="400"></div>
 
-  <div id="drop" class="drop" role="button" tabindex="0" aria-label="Выбрать файл">
-    <svg class="lock" viewBox="0 0 48 48" width="56" height="56" aria-hidden="true">
-      <path id="shackle" d="M16 22v-6a8 8 0 0 1 16 0v6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-      <rect x="10" y="22" width="28" height="20" rx="4" fill="currentColor"/>
-      <circle cx="24" cy="32" r="3" fill="var(--surface)"/>
-    </svg>
-    <p id="dropTitle" class="drop-title">Перетащите файл сюда</p>
-    <p id="dropSub" class="drop-sub">или нажмите, чтобы выбрать</p>
-    <input id="file" type="file" hidden>
-  </div>
+<div class="speech">
+  <p id="say" aria-hidden="true"></p>
+  <input id="pw" type="password" aria-label="Password" autocomplete="off" enterkeyhint="go" tabindex="-1">
+  <a id="out" hidden></a>
+</div>
 
-  <form id="panel" class="panel" hidden autocomplete="off">
-    <label for="pw">Пароль</label>
-    <div class="row">
-      <input id="pw" type="password" autocomplete="new-password" required>
-      <button type="button" id="toggle" class="ghost">Показать</button>
-    </div>
-    <div id="confirmBox">
-      <label for="pw2">Повторите пароль</label>
-      <input id="pw2" type="password" autocomplete="new-password">
-    </div>
-    <button type="submit" id="go" class="primary">Зашифровать</button>
-    <button type="button" id="reset" class="ghost">Выбрать другой файл</button>
-  </form>
+<div id="chip" class="chip" aria-hidden="true"></div>
+<button id="hand" class="hand" type="button" aria-label="Choose a file to encrypt or decrypt">
+  <span class="bob">
+    <img class="open" src="hand.jpg" alt="" width="300" height="301">
+    <img class="fist" src="fist.jpg" alt="" width="1024" height="1027">
+  </span>
+</button>
 
-  <p id="status" role="status" aria-live="polite"></p>
-  <p class="note">AES-256-GCM, ключ из пароля через PBKDF2. Забытый пароль восстановить нельзя. Максимальный размер файла: 500 МБ.</p>
-</main>
+<p id="sr" class="sr" aria-live="polite"></p>
+<input id="file" type="file" hidden>
 </body>
 </html>
