@@ -6,6 +6,9 @@ body{font:italic 1.25rem/1.4 Georgia,"Times New Roman",serif;overscroll-behavior
 .note{position:fixed;top:max(.9rem,env(safe-area-inset-top));left:0;right:0;margin:0;text-align:center;
   font:normal .8rem system-ui,sans-serif;color:var(--dim)}
 
+.count{position:fixed;top:max(.9rem,env(safe-area-inset-top));left:1rem;margin:0;font-size:.95rem;color:var(--dim)}
+@media (max-width:560px){.note{top:calc(max(.9rem,env(safe-area-inset-top)) + 1.7rem);text-align:left;padding-left:1rem}}
+
 .eyes{position:fixed;left:50%;top:22%;width:min(72vmin,440px);transform:translate(-50%,-50%);
   mix-blend-mode:screen;pointer-events:none}
 .eyes img{display:block;width:100%;height:auto;filter:contrast(1.25);animation:blink 7s infinite}
