@@ -61,3 +61,30 @@ body{font:italic 1.25rem/1.4 Georgia,"Times New Roman",serif;overscroll-behavior
   .bob,.eyes img{animation:none}
   .hand,.chip,#pw,.hand img{transition-duration:.01s!important}
 }
+
+/* stage 1: language switch, eye moods, passphrase suggestion */
+.lang{position:fixed;top:max(.5rem,env(safe-area-inset-top));right:.4rem;display:flex}
+.lang button{background:none;border:0;padding:.4rem .5rem;color:var(--dim);font:normal .85rem system-ui,sans-serif;cursor:pointer}
+.lang button[aria-pressed=true]{color:var(--ink);text-decoration:underline;text-underline-offset:.25em}
+.lang button:focus-visible{outline:2px solid var(--ink)}
+.eyes-in{transition:transform .5s ease,opacity .8s ease}
+.eyes-in[data-mood=wide]{transform:scale(1.12)}
+.eyes-in[data-mood=narrow]{transform:scaleY(.5) scaleX(1.04)}
+.eyes-in[data-mood=sleep]{transform:scaleY(.18);opacity:.45}
+.ghost{background:none;border:0;border-bottom:1px solid var(--line);padding:.15rem .1rem;color:var(--dim);
+  font:italic .95rem Georgia,"Times New Roman",serif;cursor:pointer}
+.ghost:hover{color:var(--ink)}
+.ghost:focus-visible,#phrase:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+#suggest[hidden],#phrase[hidden]{display:none}
+#phrase{max-width:92vw;padding:.5rem .8rem;border:1px dashed var(--line);border-radius:4px;background:none;
+  color:var(--ink);font:normal 1rem system-ui,sans-serif;overflow-wrap:anywhere;cursor:copy}
+#pw.plain{letter-spacing:normal;width:min(32rem,92vw);font-size:1.05rem}
+@media (prefers-reduced-motion:reduce){.eyes-in{transition-duration:.01s!important}}
+
+/* stage 2: progress bar, text output */
+.bar{width:min(16rem,70vw);height:2px;background:var(--line)}
+.bar[hidden],.textout[hidden]{display:none}
+.bar::after{content:"";display:block;height:100%;background:var(--ink);transform:scaleX(var(--p,0));transform-origin:left;transition:transform .2s linear}
+.textout{max-width:min(34rem,92vw);max-height:28vh;overflow:auto;padding:.6rem .8rem;border:1px dashed var(--line);border-radius:4px;
+  background:none;color:var(--ink);font:normal .9rem/1.45 system-ui,sans-serif;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;cursor:copy}
+.textout:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
