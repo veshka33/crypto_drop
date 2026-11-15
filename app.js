@@ -13,20 +13,20 @@ const T = {
     short: "too short. twelve characters, at least.", again: "again.", mismatch: "no. from the start.",
     wrong: "wrong.", here: "here.", hereText: "here. tap to copy.", broke: "something broke. try again.",
     heavy: "too heavy. 500 MB, at most.", keep: "keep it. it cannot be recovered. tap to copy.",
-    suggest: "suggest one", taken: "files taken: ", filesw: "files", textw: "text",
-    note: "Your files never leave your browser.", pick: "Choose files to encrypt or decrypt", title: "Drop a file", pwlabel: "Password", choose: "Choose a passphrase" },
+    hideName: "hide the name?", hideExt: "hide the extension?", yes: "yes", no: "no", suggest: "suggest one", taken: "files taken: ", filesw: "files", textw: "text",
+    note: "Your files never leave your browser.", pick: "Choose files to encrypt or decrypt", title: "Drop a file", pwlabel: "Password", choose: "Choose a passphrase", sound: "sound", code: "code" },
   uk: { hint: "кидай файли на руку або торкнись її. текст можна вставити.", letgo: "відпускай.", pass: "який пароль?",
     short: "закороткий. щонайменше дванадцять символів.", again: "ще раз.", mismatch: "ні. спочатку.",
     wrong: "не той.", here: "тримай.", hereText: "тримай. торкнись, щоб скопіювати.", broke: "щось зламалось. спробуй ще.",
     heavy: "надто важкий. не більше 500 МБ.", keep: "запам’ятай. відновити не вийде. торкнись, щоб скопіювати.",
-    suggest: "запропонувати", taken: "файлів забрано: ", filesw: "файлів", textw: "текст",
-    note: "Твої файли не залишають браузер.", pick: "Обрати файли для шифрування або розшифрування", title: "Кинь файл", pwlabel: "Пароль", choose: "Обери парольну фразу" },
+    hideName: "сховати ім’я?", hideExt: "сховати розширення?", yes: "так", no: "ні", suggest: "запропонувати", taken: "файлів забрано: ", filesw: "файлів", textw: "текст",
+    note: "Твої файли не залишають браузер.", pick: "Обрати файли для шифрування або розшифрування", title: "Кинь файл", pwlabel: "Пароль", choose: "Обери парольну фразу", sound: "звук", code: "код" },
   ru: { hint: "бросай файлы на руку или нажми на неё. текст можно вставить.", letgo: "отпускай.", pass: "какой пароль?",
     short: "слишком короткий. минимум двенадцать символов.", again: "ещё раз.", mismatch: "нет. сначала.",
     wrong: "не тот.", here: "держи.", hereText: "держи. нажми, чтобы скопировать.", broke: "что-то сломалось. попробуй ещё.",
     heavy: "слишком тяжёлый. не больше 500 МБ.", keep: "запомни. восстановить нельзя. нажми, чтобы скопировать.",
-    suggest: "предложить", taken: "файлов забрано: ", filesw: "файлов", textw: "текст",
-    note: "Твои файлы не покидают браузер.", pick: "Выбрать файлы для шифрования или расшифровки", title: "Брось файл", pwlabel: "Пароль", choose: "Выбери парольную фразу" }
+    hideName: "скрыть имя?", hideExt: "скрыть расширение?", yes: "да", no: "нет", suggest: "предложить", taken: "файлов забрано: ", filesw: "файлов", textw: "текст",
+    note: "Твои файлы не покидают браузер.", pick: "Выбрать файлы для шифрования или расшифровки", title: "Брось файл", pwlabel: "Пароль", choose: "Выбери парольную фразу", sound: "звук", code: "код" }
 };
 let lang = (() => {
   try { const s = localStorage.getItem("lang"); if (T[s]) return s; } catch {}
@@ -36,7 +36,9 @@ let lang = (() => {
 const t = (k) => T[lang][k];
 let busy = false, token = 0, lastUrl = null, depth = 0, shown = null, lastCount = null, idleT = 0, generated = "";
 
-const setState = (s) => { body.dataset.state = s; };
+const sfx = (n, ...a) => { try { if (window.Sfx && Sfx[n]) Sfx[n](...a); } catch {} };
+const SOUND_AT = { reach: "reach", grab: "grab", gone: "gone", back: "back", throw: "throwIt" };
+const setState = (s) => { if (body.dataset.state === s) return; body.dataset.state = s; if (SOUND_AT[s]) sfx(SOUND_AT[s]); };
 const setMood = (m) => { eyesIn.dataset.mood = m; };
 const fmt = (n) => n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFixed(1) + " KB" : (n / 1048576).toFixed(1) + " MB";
 
@@ -48,6 +50,14 @@ function showCount(n) {
 }
 const countCall = (opts) => Promise.resolve().then(() => fetch("/api/count", opts))
   .then((r) => (r.ok ? r.json() : null)).then((d) => d && showCount(d.count)).catch(() => {});
+// a signed one-time ticket is requested when a file is dropped and sent back after a real encryption
+let ticketP = null;
+const getTicket = () => Promise.resolve().then(() => fetch("/api/count?challenge=1", { cache: "no-store" }))
+  .then((r) => (r.ok ? r.json() : null)).then((d) => (d && d.token) || null).catch(() => null);
+const countUp = async () => {
+  const token = await ticketP; ticketP = null;
+  if (token) countCall({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });
+};
 
 function applyLang() {
   document.documentElement.lang = lang;
@@ -57,7 +67,9 @@ function applyLang() {
   pw.setAttribute("aria-label", t("pwlabel"));
   suggest.textContent = t("suggest");
   $("hands").setAttribute("aria-label", t("choose"));
-  document.querySelectorAll(".lang button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.l === lang)));
+  $("yes").textContent = t("yes"); $("no").textContent = t("no");
+  $("snd").textContent = t("sound"); $("src").textContent = t("code");
+  document.querySelectorAll(".lang button[data-l]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.l === lang)));
   if (lastCount !== null) showCount(lastCount);
   if (!busy && shown) { say.textContent = t(shown); sr.textContent = t(shown); }
 }
@@ -65,6 +77,7 @@ function applyLang() {
 async function speak(key, dim = false) {
   const my = ++token, text = t(key);
   shown = key; sr.textContent = text;
+  if (!dim) sfx("whisper", text.length * 0.1);
   say.className = dim ? "dim" : ""; say.textContent = "";
   if (RM || dim) { say.textContent = text; return; }
   say.classList.add("typing");
@@ -106,7 +119,7 @@ function openHands(cb) {
     th.tag.textContent = th.words.join("\n");
     th.tag.setAttribute("aria-label", th.words.join(" "));
   }
-  handsEl.classList.add("shown"); body.classList.add("suggesting"); handsOpen = true;
+  handsEl.classList.add("shown"); body.classList.add("suggesting"); handsOpen = true; sfx("creak");
 }
 function closeHands() {
   if (!handsOpen) return;
@@ -127,10 +140,26 @@ function ask(canSuggest) {
       resolve(v);
     };
     const onKey = (e) => { if (e.key === "Enter" && pw.value) { e.preventDefault(); done(); } };
-    const pick = (words) => { generated = words.join("-"); pw.type = "text"; pw.classList.add("plain"); pw.value = generated; closeHands(); pw.focus(); };
+    const pick = (words) => { sfx("pluck"); generated = words.join("-"); pw.type = "text"; pw.classList.add("plain"); pw.value = generated; closeHands(); pw.focus(); };
     const onSuggest = () => openHands(pick);
     pw.addEventListener("keydown", onKey); suggest.addEventListener("click", onSuggest);
   });
+}
+
+async function askYesNo(key) {
+  await speak(key);
+  const choice = $("choice"), yes = $("yes"), no = $("no");
+  choice.hidden = false; yes.focus();
+  return new Promise((res) => {
+    const done = (v) => { choice.hidden = true; yes.onclick = no.onclick = null; sfx("pluck"); res(v); };
+    yes.onclick = () => done(true); no.onclick = () => done(false);
+  });
+}
+async function askNaming(files) {
+  const probe = files.length === 1 ? files[0].name : "files.zip";
+  const o = { hideName: await askYesNo("hideName"), hideExt: false };
+  if (Vault.splitName(probe).ext) o.hideExt = await askYesNo("hideExt");
+  return o;
 }
 
 async function getPassword(encrypting) {
@@ -147,7 +176,7 @@ async function getPassword(encrypting) {
     }
     await speak("again");
     if (a === await ask(false)) return a;
-    await speak("mismatch"); await sleep(900);
+    sfx("wrong"); await speak("mismatch"); await sleep(900);
   }
 }
 
@@ -169,11 +198,11 @@ function download(url, name) {
 }
 
 const setP = (p) => { bar.style.setProperty("--p", String(p)); if (p > 0) say.textContent = Math.round(p * 100) + "%"; };
-const work = (job, pass, dec) => {
+const work = (job, pass, dec, opts) => {
   if (job.type === "text") return dec ? Vault.decryptText(job.text, pass, setP) : Vault.encryptText(job.text, pass, setP);
   const f = job.files;
   if (dec) return Vault.decrypt(f[0], pass, setP);
-  return f.length === 1 ? Vault.encryptFile(f[0], pass, setP) : Vault.encryptFiles(f, pass, setP);
+  return f.length === 1 ? Vault.encryptFile(f[0], pass, setP, opts) : Vault.encryptFiles(f, pass, setP, opts);
 };
 
 async function run(job) {
@@ -190,6 +219,7 @@ async function run(job) {
   let decrypting = false;
   try { decrypting = isText ? job.text.trim().startsWith("VS2.") : files.length === 1 && (await Vault.detect(files[0])) > 0; } catch {}
   const encrypting = !decrypting;
+  ticketP = encrypting ? getTicket() : null;
   token++; shown = null; say.textContent = ""; say.className = ""; sr.textContent = "";
 
   chip.textContent = isText ? t("textw") + "  " + job.text.length
@@ -199,16 +229,17 @@ async function run(job) {
   setState("grab"); chip.classList.add("eaten"); await sleep(550);
   setState("gone"); setMood(""); await sleep(1500);
 
-  let result = null;
+  let result = null, opts = null;
   for (;;) {
     const password = await getPassword(encrypting);
+    if (encrypting && !isText && !opts) opts = await askNaming(files);
     token++; shown = null; say.className = ""; say.textContent = "...";
     bar.style.setProperty("--p", "0"); bar.hidden = false;
-    try { result = await work(job, password, decrypting); break; }
+    try { result = await work(job, password, decrypting, opts); break; }
     catch (e) {
       bar.hidden = true;
       if (!(decrypting && e && e.message === "bad")) break;
-      setMood("narrow"); await speak("wrong"); await sleep(900); setMood("");
+      setMood("narrow"); sfx("wrong"); await speak("wrong"); await sleep(900); setMood("");
     }
   }
   bar.hidden = true; chip.className = "chip";
@@ -219,7 +250,7 @@ async function run(job) {
   }
   setState("back"); await sleep(1300);
   setState("throw"); setMood("wide"); await sleep(120);
-  if (encrypting) countCall({ method: "POST" });
+  if (encrypting) countUp();
   if (result.text !== undefined) {
     textout.textContent = result.text; textout.hidden = false;
     flyIn(textout); speak("hereText");
@@ -290,6 +321,19 @@ addEventListener("pointermove", (e) => {
 addEventListener("keydown", (e) => { if (e.key === "Escape") closeHands(); wake(); });
 pw.addEventListener("input", closeHands);
 addEventListener("pointerdown", wake);
+
+let soundPref = false;
+try { soundPref = localStorage.getItem("sound") === "1"; } catch {}
+const snd = $("snd");
+snd.setAttribute("aria-pressed", String(soundPref));
+snd.addEventListener("click", () => {
+  soundPref = !soundPref;
+  try { localStorage.setItem("sound", soundPref ? "1" : "0"); } catch {}
+  snd.setAttribute("aria-pressed", String(soundPref)); sfx("enable", soundPref);
+});
+const unlock = () => { if (soundPref && window.Sfx && !Sfx.enabled) sfx("enable", true); };
+addEventListener("pointerdown", unlock); addEventListener("keydown", unlock);
+if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
 
 applyLang();
 speak("hint", true);
