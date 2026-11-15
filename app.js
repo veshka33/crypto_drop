@@ -88,7 +88,7 @@ const handsEl = $("hands");
 let handsOpen = false, onPick = null;
 const threads = HANDS_ANCHORS.map(([x, y, end], i) => {
   const el = document.createElement("div"), string = document.createElement("i"), tag = document.createElement("button");
-  el.className = "thread" + (i === 2 ? " more" : "");
+  el.className = "thread" + (i === 4 ? " more" : "");
   el.style.left = (x / 1136 * 100) + "%";
   el.style.top = ((y - 10) / 639 * 100) + "%";
   el.style.setProperty("--len", "calc(var(--hw) * " + ((end - y + 10) / 1136).toFixed(4) + ")");
@@ -106,11 +106,11 @@ function openHands(cb) {
     th.tag.textContent = th.words.join("\n");
     th.tag.setAttribute("aria-label", th.words.join(" "));
   }
-  handsEl.classList.add("open"); body.classList.add("suggesting"); handsOpen = true;
+  handsEl.classList.add("shown"); body.classList.add("suggesting"); handsOpen = true;
 }
 function closeHands() {
   if (!handsOpen) return;
-  handsEl.classList.remove("open"); body.classList.remove("suggesting"); handsOpen = false;
+  handsEl.classList.remove("shown"); body.classList.remove("suggesting"); handsOpen = false;
 }
 
 function ask(canSuggest) {
