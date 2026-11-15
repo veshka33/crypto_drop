@@ -8,18 +8,29 @@
 <title>Drop a file</title>
 <meta name="description" content="Encrypt and decrypt files in your browser. Nothing is uploaded.">
 <link rel="stylesheet" href="style.css">
+<script src="words.js" defer></script>
+<script src="argon2.js" defer></script>
 <script src="crypto.js" defer></script>
 <script src="app.js" defer></script>
 </head>
 <body data-state="idle">
 <p id="count" class="count" hidden></p>
-<p class="note">Your files never leave your browser.</p>
-<div class="eyes" id="eyes"><img src="eyes.jpg" alt="" width="400" height="400"></div>
+<p id="note" class="note">Your files never leave your browser.</p>
+<nav class="lang" aria-label="Language">
+  <button type="button" data-l="en" aria-pressed="true">en</button>
+  <button type="button" data-l="uk" aria-pressed="false">uk</button>
+  <button type="button" data-l="ru" aria-pressed="false">ru</button>
+</nav>
+<div class="eyes" id="eyes"><div class="eyes-in" id="eyesIn"><img src="eyes.jpg" alt="" width="400" height="400"></div></div>
 
 <div class="speech">
   <p id="say" aria-hidden="true"></p>
+  <div id="bar" class="bar" hidden></div>
   <input id="pw" type="password" aria-label="Password" autocomplete="off" enterkeyhint="go" tabindex="-1">
+  <button id="suggest" class="ghost" type="button" hidden>suggest one</button>
+  <button id="phrase" type="button" hidden></button>
   <a id="out" hidden></a>
+  <button id="textout" class="textout" type="button" hidden></button>
 </div>
 
 <div id="chip" class="chip" aria-hidden="true"></div>
@@ -31,6 +42,6 @@
 </button>
 
 <p id="sr" class="sr" aria-live="polite"></p>
-<input id="file" type="file" hidden>
+<input id="file" type="file" multiple hidden>
 </body>
 </html>
