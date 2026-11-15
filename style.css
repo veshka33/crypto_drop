@@ -91,12 +91,17 @@ body{font:italic 1.25rem/1.4 Georgia,"Times New Roman",serif;overscroll-behavior
 
 /* stage 2b: puppeteer hands with hanging passphrases */
 .speech{transition:top .6s ease}
-body.suggesting .speech{top:62%}
-.hands{--hw:min(94vw,540px);position:fixed;top:0;left:50%;width:var(--hw);z-index:4;
+body.suggesting .speech{top:max(62%,calc(var(--hw)*.86 + 2rem))}
+.eyes{transition:opacity .6s}
+body.suggesting .eyes{opacity:.1}
+.note,.count{transition:opacity .4s}
+body.suggesting .note,body.suggesting .count{opacity:0}
+:root{--hw:min(94vw,540px)}
+.hands{position:fixed;top:0;left:50%;width:var(--hw);z-index:4;
   font-size:clamp(12px,calc(var(--hw)*.028),16px);
   transform:translate(-50%,calc(-100% - 60vh));visibility:hidden;
   transition:transform .9s cubic-bezier(.2,.8,.2,1),visibility 0s .9s}
-.hands.open{transform:translate(-50%,-6%);visibility:visible;
+.hands.shown{transform:translate(-50%,-6%);visibility:visible;
   transition:transform .9s cubic-bezier(.2,.8,.2,1),visibility 0s}
 .hands-img{display:block;width:100%;height:auto;pointer-events:none;user-select:none}
 .thread{position:absolute;display:flex;flex-direction:column;align-items:center;width:0;
@@ -109,4 +114,4 @@ body.suggesting .speech{top:62%}
 .tag:hover,.tag:focus-visible{border-color:var(--ink);transform:scale(1.06);outline:0}
 @keyframes sway{0%,100%{transform:rotate(-2.2deg)}50%{transform:rotate(2.2deg)}}
 @media (max-width:600px){.thread.more{display:none}}
-@media (prefers-reduced-motion:reduce){.thread{animation:none}.hands,.hands.open,.speech{transition-duration:.01s!important}}
+@media (prefers-reduced-motion:reduce){.thread{animation:none}.hands,.hands.shown,.speech{transition-duration:.01s!important}}
