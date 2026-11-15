@@ -1,26 +1,70 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
-const body = document.body, say = $("say"), sr = $("sr"), pw = $("pw"), chip = $("chip"),
-  out = $("out"), fileInput = $("file"), hand = $("hand"), eyes = $("eyes");
+const body = document.body, say = $("say"), sr = $("sr"), pw = $("pw"), chip = $("chip"), out = $("out"),
+  fileInput = $("file"), hand = $("hand"), eyes = $("eyes"), eyesIn = $("eyesIn"), counter = $("count"),
+  suggest = $("suggest"), phrase = $("phrase"), bar = $("bar"), textout = $("textout");
 const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const sleep = (ms) => new Promise((r) => setTimeout(r, RM ? Math.min(ms, 80) : ms));
-const MAX = 300 * 1024 * 1024;
-const counter = $("count");
-const showCount = (n) => { if (typeof n !== "number") return; counter.textContent = "files taken: " + n.toLocaleString("en-US"); counter.hidden = false; };
-const countCall = (opts) => fetch("/api/count", opts).then((r) => (r.ok ? r.json() : null)).then((d) => d && showCount(d.count)).catch(() => {});
-const loadCount = () => countCall();
-const bump = () => countCall({ method: "POST" });
-const HINT = "drop a file on the hand, or tap it";
-let busy = false, token = 0, lastUrl = null, depth = 0;
+const MAX = 500 * 1024 * 1024, MIN = 12;
+const CAN_GEN = Array.isArray(window.WORDS) && window.WORDS.length === 2048;
+
+const T = {
+  en: { hint: "drop files on the hand, or tap it. text can be pasted.", letgo: "let go.", pass: "what password?",
+    short: "too short. twelve characters, at least.", again: "again.", mismatch: "no. from the start.",
+    wrong: "wrong.", here: "here.", hereText: "here. tap to copy.", broke: "something broke. try again.",
+    heavy: "too heavy. 500 MB, at most.", keep: "keep it. it cannot be recovered. tap to copy.",
+    suggest: "suggest one", taken: "files taken: ", filesw: "files", textw: "text",
+    note: "Your files never leave your browser.", pick: "Choose files to encrypt or decrypt", title: "Drop a file", pwlabel: "Password" },
+  uk: { hint: "кидай файли на руку або торкнись її. текст можна вставити.", letgo: "відпускай.", pass: "який пароль?",
+    short: "закороткий. щонайменше дванадцять символів.", again: "ще раз.", mismatch: "ні. спочатку.",
+    wrong: "не той.", here: "тримай.", hereText: "тримай. торкнись, щоб скопіювати.", broke: "щось зламалось. спробуй ще.",
+    heavy: "надто важкий. не більше 500 МБ.", keep: "запам’ятай. відновити не вийде. торкнись, щоб скопіювати.",
+    suggest: "запропонувати", taken: "файлів забрано: ", filesw: "файлів", textw: "текст",
+    note: "Твої файли не залишають браузер.", pick: "Обрати файли для шифрування або розшифрування", title: "Кинь файл", pwlabel: "Пароль" },
+  ru: { hint: "бросай файлы на руку или нажми на неё. текст можно вставить.", letgo: "отпускай.", pass: "какой пароль?",
+    short: "слишком короткий. минимум двенадцать символов.", again: "ещё раз.", mismatch: "нет. сначала.",
+    wrong: "не тот.", here: "держи.", hereText: "держи. нажми, чтобы скопировать.", broke: "что-то сломалось. попробуй ещё.",
+    heavy: "слишком тяжёлый. не больше 500 МБ.", keep: "запомни. восстановить нельзя. нажми, чтобы скопировать.",
+    suggest: "предложить", taken: "файлов забрано: ", filesw: "файлов", textw: "текст",
+    note: "Твои файлы не покидают браузер.", pick: "Выбрать файлы для шифрования или расшифровки", title: "Брось файл", pwlabel: "Пароль" }
+};
+let lang = (() => {
+  try { const s = localStorage.getItem("lang"); if (T[s]) return s; } catch {}
+  const n = (navigator.language || "en").slice(0, 2).toLowerCase();
+  return T[n] ? n : "en";
+})();
+const t = (k) => T[lang][k];
+let busy = false, token = 0, lastUrl = null, depth = 0, shown = null, lastCount = null, idleT = 0, generated = "";
 
 const setState = (s) => { body.dataset.state = s; };
+const setMood = (m) => { eyesIn.dataset.mood = m; };
 const fmt = (n) => n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFixed(1) + " KB" : (n / 1048576).toFixed(1) + " MB";
 
-async function speak(text, dim = false) {
-  const my = ++token;
-  sr.textContent = text;
-  say.className = dim ? "dim" : "";
-  say.textContent = "";
+function showCount(n) {
+  if (typeof n !== "number") return;
+  lastCount = n;
+  counter.textContent = t("taken") + n.toLocaleString(lang === "en" ? "en-US" : lang);
+  counter.hidden = false;
+}
+const countCall = (opts) => Promise.resolve().then(() => fetch("/api/count", opts))
+  .then((r) => (r.ok ? r.json() : null)).then((d) => d && showCount(d.count)).catch(() => {});
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.title = t("title");
+  $("note").textContent = t("note");
+  hand.setAttribute("aria-label", t("pick"));
+  pw.setAttribute("aria-label", t("pwlabel"));
+  suggest.textContent = t("suggest");
+  document.querySelectorAll(".lang button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.l === lang)));
+  if (lastCount !== null) showCount(lastCount);
+  if (!busy && shown) { say.textContent = t(shown); sr.textContent = t(shown); }
+}
+
+async function speak(key, dim = false) {
+  const my = ++token, text = t(key);
+  shown = key; sr.textContent = text;
+  say.className = dim ? "dim" : ""; say.textContent = "";
   if (RM || dim) { say.textContent = text; return; }
   say.classList.add("typing");
   for (const ch of text) {
@@ -31,28 +75,45 @@ async function speak(text, dim = false) {
   if (my === token) say.classList.remove("typing");
 }
 
-function ask() {
+function makePhrase() {
+  const buf = new Uint16Array(6);
+  crypto.getRandomValues(buf);
+  return Array.from(buf, (v) => window.WORDS[v & 2047]).join("-");   // 2048 = 2^11, so no bias
+}
+
+function ask(canSuggest) {
   return new Promise((resolve) => {
-    pw.value = ""; pw.tabIndex = 0; pw.classList.add("on"); pw.focus();
-    const onKey = (e) => {
-      if (e.key !== "Enter" || !pw.value) return;
-      pw.removeEventListener("keydown", onKey);
-      pw.classList.remove("on"); pw.tabIndex = -1; pw.blur();
-      resolve(pw.value);
+    pw.value = ""; pw.type = "password"; pw.classList.remove("plain");
+    pw.tabIndex = 0; pw.classList.add("on"); pw.focus();
+    suggest.hidden = !(canSuggest && CAN_GEN);
+    const done = () => {
+      pw.removeEventListener("keydown", onKey); suggest.removeEventListener("click", onSuggest);
+      const v = pw.value;
+      pw.value = ""; pw.type = "password"; pw.classList.remove("on", "plain"); pw.tabIndex = -1; pw.blur();
+      suggest.hidden = true;
+      resolve(v);
     };
-    pw.addEventListener("keydown", onKey);
+    const onKey = (e) => { if (e.key === "Enter" && pw.value) { e.preventDefault(); done(); } };
+    const onSuggest = () => { generated = makePhrase(); pw.type = "text"; pw.classList.add("plain"); pw.value = generated; pw.focus(); };
+    pw.addEventListener("keydown", onKey); suggest.addEventListener("click", onSuggest);
   });
 }
 
 async function getPassword(encrypting) {
+  generated = "";
   for (;;) {
-    await speak("what password?");
-    const a = await ask();
+    await speak("pass");
+    const a = await ask(encrypting);
     if (!encrypting) return a;
-    if (a.length < 8) { await speak("too short. eight characters, at least."); await sleep(900); continue; }
-    await speak("again.");
-    if (a === await ask()) return a;
-    await speak("no. from the start."); await sleep(900);
+    if (a.length < MIN) { await speak("short"); await sleep(900); continue; }
+    if (a === generated) {
+      phrase.textContent = a; phrase.hidden = false;
+      await speak("keep"); await sleep(1500);
+      return a;
+    }
+    await speak("again");
+    if (a === await ask(false)) return a;
+    await speak("mismatch"); await sleep(900);
   }
 }
 
@@ -73,81 +134,129 @@ function download(url, name) {
   a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
 }
 
-async function run(f) {
+const setP = (p) => { bar.style.setProperty("--p", String(p)); if (p > 0) say.textContent = Math.round(p * 100) + "%"; };
+const work = (job, pass, dec) => {
+  if (job.type === "text") return dec ? Vault.decryptText(job.text, pass, setP) : Vault.encryptText(job.text, pass, setP);
+  const f = job.files;
+  if (dec) return Vault.decrypt(f[0], pass, setP);
+  return f.length === 1 ? Vault.encryptFile(f[0], pass, setP) : Vault.encryptFiles(f, pass, setP);
+};
+
+async function run(job) {
   if (busy) return;
-  if (f.size > MAX) {
-    setState("idle"); await speak("too heavy. 300 MB, at most.");
-    await sleep(2500); speak(HINT, true); return;
+  const isText = job.type === "text", files = job.files || [];
+  const size = isText ? job.text.length : files.reduce((n, f) => n + f.size, 0);
+  if (size > (isText ? 1e6 : MAX) || files.length > 1000) {
+    setState("idle"); setMood("narrow"); await speak("heavy");
+    await sleep(2500); setMood(""); speak("hint", true); return;
   }
   busy = true;
-  out.hidden = true;
+  out.hidden = true; phrase.hidden = true; textout.hidden = true;
   if (lastUrl) { URL.revokeObjectURL(lastUrl); lastUrl = null; }
-  const encrypting = !(await Vault.isEncrypted(f));
-  token++; say.textContent = ""; say.className = ""; sr.textContent = "";
+  let decrypting = false;
+  try { decrypting = isText ? job.text.trim().startsWith("VS2.") : files.length === 1 && (await Vault.detect(files[0])) > 0; } catch {}
+  const encrypting = !decrypting;
+  token++; shown = null; say.textContent = ""; say.className = ""; sr.textContent = "";
 
-  chip.textContent = f.name + "  " + fmt(f.size);
+  chip.textContent = isText ? t("textw") + "  " + job.text.length
+    : files.length === 1 ? files[0].name + "  " + fmt(size) : files.length + " " + t("filesw") + "  " + fmt(size);
   chip.className = "chip show";
-  setState("reach"); await sleep(450);
+  setMood("wide"); setState("reach"); await sleep(450);
   setState("grab"); chip.classList.add("eaten"); await sleep(550);
-  setState("gone"); await sleep(1500);
+  setState("gone"); setMood(""); await sleep(1500);
 
   let result = null;
   for (;;) {
     const password = await getPassword(encrypting);
-    token++; say.className = ""; say.textContent = "...";
-    try { result = await (encrypting ? Vault.encrypt : Vault.decrypt)(f, password); break; }
-    catch {
-      if (encrypting) break;
-      await speak("wrong."); await sleep(900);
+    token++; shown = null; say.className = ""; say.textContent = "...";
+    bar.style.setProperty("--p", "0"); bar.hidden = false;
+    try { result = await work(job, password, decrypting); break; }
+    catch (e) {
+      bar.hidden = true;
+      if (!(decrypting && e && e.message === "bad")) break;
+      setMood("narrow"); await speak("wrong"); await sleep(900); setMood("");
     }
   }
-  chip.className = "chip";
+  bar.hidden = true; chip.className = "chip";
 
   if (!result) {
-    setState("idle"); await speak("something broke. try again.");
+    setState("idle"); await speak("broke");
     busy = false; return;
   }
   setState("back"); await sleep(1300);
-  setState("throw"); await sleep(120);
-  lastUrl = URL.createObjectURL(result.blob);
-  out.href = lastUrl; out.download = result.name;
-  out.textContent = result.name + "  " + fmt(result.blob.size);
-  out.hidden = false;
-  if (encrypting) bump();
-  flyIn(out);
-  download(lastUrl, result.name);
-  speak("here.");
+  setState("throw"); setMood("wide"); await sleep(120);
+  if (encrypting) countCall({ method: "POST" });
+  if (result.text !== undefined) {
+    textout.textContent = result.text; textout.hidden = false;
+    flyIn(textout); speak("hereText");
+  } else {
+    lastUrl = URL.createObjectURL(result.blob);
+    out.href = lastUrl; out.download = result.name;
+    out.textContent = result.name + "  " + fmt(result.blob.size);
+    out.hidden = false;
+    flyIn(out); download(lastUrl, result.name); speak("here");
+  }
   await sleep(500);
   setState("idle");
   busy = false;
+  setTimeout(() => setMood(""), 1200);
+}
+
+function wake() {
+  clearTimeout(idleT);
+  if (eyesIn.dataset.mood === "sleep") setMood("");
+  idleT = setTimeout(() => { if (!busy && !eyesIn.dataset.mood) setMood("sleep"); }, 45000);
 }
 
 const hasFiles = (e) => e.dataTransfer && [...e.dataTransfer.types].includes("Files");
 addEventListener("dragenter", (e) => {
   if (!hasFiles(e)) return;
-  e.preventDefault(); depth++;
-  if (!busy && depth === 1) { setState("reach"); speak("let go.", true); }
+  e.preventDefault(); depth++; wake();
+  if (!busy && depth === 1) { setState("reach"); setMood("wide"); speak("letgo", true); }
 });
 addEventListener("dragover", (e) => { if (hasFiles(e)) e.preventDefault(); });
 addEventListener("dragleave", (e) => {
   if (!hasFiles(e)) return;
   depth = Math.max(0, depth - 1);
-  if (!busy && depth === 0) { setState("idle"); speak(HINT, true); }
+  if (!busy && depth === 0) { setState("idle"); setMood(""); speak("hint", true); }
 });
 addEventListener("drop", (e) => {
   e.preventDefault(); depth = 0;
   if (busy) return;
-  const f = e.dataTransfer && e.dataTransfer.files[0];
-  if (f) run(f); else { setState("idle"); speak(HINT, true); }
+  const fs = e.dataTransfer ? [...e.dataTransfer.files] : [];
+  if (fs.length) run({ type: "files", files: fs }); else { setState("idle"); setMood(""); speak("hint", true); }
 });
 
 hand.addEventListener("click", () => { if (!busy) fileInput.click(); });
-fileInput.addEventListener("change", () => { const f = fileInput.files[0]; fileInput.value = ""; if (f) run(f); });
+fileInput.addEventListener("change", () => { const fs = [...fileInput.files]; fileInput.value = ""; if (fs.length) run({ type: "files", files: fs }); });
+addEventListener("paste", (e) => {
+  if (busy || e.target === pw || !e.clipboardData) return;
+  const fs = [...(e.clipboardData.files || [])];
+  if (fs.length) { e.preventDefault(); run({ type: "files", files: fs }); return; }
+  const text = e.clipboardData.getData("text");
+  if (text && text.trim()) { e.preventDefault(); run({ type: "text", text }); }
+});
+const copyOf = (el) => () => { try { navigator.clipboard.writeText(el.textContent); } catch {} };
+phrase.addEventListener("click", copyOf(phrase));
+textout.addEventListener("click", copyOf(textout));
+document.querySelector(".lang").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b || !T[b.dataset.l]) return;
+  lang = b.dataset.l;
+  try { localStorage.setItem("lang", lang); } catch {}
+  applyLang();
+});
 
-if (!RM) addEventListener("pointermove", (e) => {
+addEventListener("pointermove", (e) => {
+  wake();
+  if (RM) return;
   const x = e.clientX / innerWidth - 0.5, y = e.clientY / innerHeight - 0.5;
   eyes.style.transform = `translate(calc(-50% + ${x * 26}px), calc(-50% + ${y * 16}px))`;
 });
+addEventListener("keydown", wake);
+addEventListener("pointerdown", wake);
 
-speak(HINT, true);
-loadCount();
+applyLang();
+speak("hint", true);
+countCall();
+wake();
