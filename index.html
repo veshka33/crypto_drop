@@ -7,16 +7,22 @@
 <meta name="theme-color" content="#000000">
 <title>Drop a file</title>
 <meta name="description" content="Encrypt and decrypt files in your browser. Nothing is uploaded.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="style.css">
 <script src="words.js" defer></script>
 <script src="argon2.js" defer></script>
 <script src="crypto.js" defer></script>
+<script src="sound.js" defer></script>
 <script src="app.js" defer></script>
 </head>
 <body data-state="idle">
 <p id="count" class="count" hidden></p>
 <p id="note" class="note">Your files never leave your browser.</p>
 <nav class="lang" aria-label="Language">
+  <a id="src" href="https://github.com/veshka33/crypto_drop" target="_blank" rel="noopener noreferrer">code</a>
+  <button id="snd" type="button" aria-pressed="false">sound</button>
   <button type="button" data-l="en" aria-pressed="true">en</button>
   <button type="button" data-l="uk" aria-pressed="false">uk</button>
   <button type="button" data-l="ru" aria-pressed="false">ru</button>
@@ -29,6 +35,10 @@
   <input id="pw" type="password" aria-label="Password" autocomplete="off" enterkeyhint="go" tabindex="-1">
   <button id="suggest" class="ghost" type="button" hidden>suggest one</button>
   <button id="phrase" type="button" hidden></button>
+  <div id="choice" class="choice" hidden>
+    <button id="yes" class="ghost" type="button">yes</button>
+    <button id="no" class="ghost" type="button">no</button>
+  </div>
   <a id="out" hidden></a>
   <button id="textout" class="textout" type="button" hidden></button>
 </div>
