@@ -14,19 +14,19 @@ const T = {
     wrong: "wrong.", here: "here.", hereText: "here. tap to copy.", broke: "something broke. try again.",
     heavy: "too heavy. 500 MB, at most.", keep: "keep it. it cannot be recovered. tap to copy.",
     suggest: "suggest one", taken: "files taken: ", filesw: "files", textw: "text",
-    note: "Your files never leave your browser.", pick: "Choose files to encrypt or decrypt", title: "Drop a file", pwlabel: "Password" },
+    note: "Your files never leave your browser.", pick: "Choose files to encrypt or decrypt", title: "Drop a file", pwlabel: "Password", choose: "Choose a passphrase" },
   uk: { hint: "кидай файли на руку або торкнись її. текст можна вставити.", letgo: "відпускай.", pass: "який пароль?",
     short: "закороткий. щонайменше дванадцять символів.", again: "ще раз.", mismatch: "ні. спочатку.",
     wrong: "не той.", here: "тримай.", hereText: "тримай. торкнись, щоб скопіювати.", broke: "щось зламалось. спробуй ще.",
     heavy: "надто важкий. не більше 500 МБ.", keep: "запам’ятай. відновити не вийде. торкнись, щоб скопіювати.",
     suggest: "запропонувати", taken: "файлів забрано: ", filesw: "файлів", textw: "текст",
-    note: "Твої файли не залишають браузер.", pick: "Обрати файли для шифрування або розшифрування", title: "Кинь файл", pwlabel: "Пароль" },
+    note: "Твої файли не залишають браузер.", pick: "Обрати файли для шифрування або розшифрування", title: "Кинь файл", pwlabel: "Пароль", choose: "Обери парольну фразу" },
   ru: { hint: "бросай файлы на руку или нажми на неё. текст можно вставить.", letgo: "отпускай.", pass: "какой пароль?",
     short: "слишком короткий. минимум двенадцать символов.", again: "ещё раз.", mismatch: "нет. сначала.",
     wrong: "не тот.", here: "держи.", hereText: "держи. нажми, чтобы скопировать.", broke: "что-то сломалось. попробуй ещё.",
     heavy: "слишком тяжёлый. не больше 500 МБ.", keep: "запомни. восстановить нельзя. нажми, чтобы скопировать.",
     suggest: "предложить", taken: "файлов забрано: ", filesw: "файлов", textw: "текст",
-    note: "Твои файлы не покидают браузер.", pick: "Выбрать файлы для шифрования или расшифровки", title: "Брось файл", pwlabel: "Пароль" }
+    note: "Твои файлы не покидают браузер.", pick: "Выбрать файлы для шифрования или расшифровки", title: "Брось файл", pwlabel: "Пароль", choose: "Выбери парольную фразу" }
 };
 let lang = (() => {
   try { const s = localStorage.getItem("lang"); if (T[s]) return s; } catch {}
@@ -56,6 +56,7 @@ function applyLang() {
   hand.setAttribute("aria-label", t("pick"));
   pw.setAttribute("aria-label", t("pwlabel"));
   suggest.textContent = t("suggest");
+  $("hands").setAttribute("aria-label", t("choose"));
   document.querySelectorAll(".lang button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.l === lang)));
   if (lastCount !== null) showCount(lastCount);
   if (!busy && shown) { say.textContent = t(shown); sr.textContent = t(shown); }
@@ -75,10 +76,41 @@ async function speak(key, dim = false) {
   if (my === token) say.classList.remove("typing");
 }
 
-function makePhrase() {
+function makeWords() {
   const buf = new Uint16Array(6);
   crypto.getRandomValues(buf);
-  return Array.from(buf, (v) => window.WORDS[v & 2047]).join("-");   // 2048 = 2^11, so no bias
+  return Array.from(buf, (v) => window.WORDS[v & 2047]);   // 2048 = 2^11, so no bias; 6 words = 66 bits
+}
+
+// puppeteer hands: [fingertip x, fingertip y, tag top y] in the 1136x639 hands image
+const HANDS_ANCHORS = [[96, 374, 690], [316, 559, 700], [646, 234, 680], [846, 571, 705], [1101, 402, 685]];
+const handsEl = $("hands");
+let handsOpen = false, onPick = null;
+const threads = HANDS_ANCHORS.map(([x, y, end], i) => {
+  const el = document.createElement("div"), string = document.createElement("i"), tag = document.createElement("button");
+  el.className = "thread" + (i === 2 ? " more" : "");
+  el.style.left = (x / 1136 * 100) + "%";
+  el.style.top = ((y - 10) / 639 * 100) + "%";
+  el.style.setProperty("--len", "calc(var(--hw) * " + ((end - y + 10) / 1136).toFixed(4) + ")");
+  el.style.setProperty("--d", (-i * 0.9) + "s");
+  string.className = "string"; tag.className = "tag"; tag.type = "button";
+  el.append(string, tag); handsEl.append(el);
+  const th = { tag, words: [] };
+  tag.addEventListener("click", () => { if (onPick) onPick(th.words); });
+  return th;
+});
+function openHands(cb) {
+  onPick = cb;
+  for (const th of threads) {
+    th.words = makeWords();
+    th.tag.textContent = th.words.join("\n");
+    th.tag.setAttribute("aria-label", th.words.join(" "));
+  }
+  handsEl.classList.add("open"); body.classList.add("suggesting"); handsOpen = true;
+}
+function closeHands() {
+  if (!handsOpen) return;
+  handsEl.classList.remove("open"); body.classList.remove("suggesting"); handsOpen = false;
 }
 
 function ask(canSuggest) {
@@ -87,6 +119,7 @@ function ask(canSuggest) {
     pw.tabIndex = 0; pw.classList.add("on"); pw.focus();
     suggest.hidden = !(canSuggest && CAN_GEN);
     const done = () => {
+      closeHands();
       pw.removeEventListener("keydown", onKey); suggest.removeEventListener("click", onSuggest);
       const v = pw.value;
       pw.value = ""; pw.type = "password"; pw.classList.remove("on", "plain"); pw.tabIndex = -1; pw.blur();
@@ -94,7 +127,8 @@ function ask(canSuggest) {
       resolve(v);
     };
     const onKey = (e) => { if (e.key === "Enter" && pw.value) { e.preventDefault(); done(); } };
-    const onSuggest = () => { generated = makePhrase(); pw.type = "text"; pw.classList.add("plain"); pw.value = generated; pw.focus(); };
+    const pick = (words) => { generated = words.join("-"); pw.type = "text"; pw.classList.add("plain"); pw.value = generated; closeHands(); pw.focus(); };
+    const onSuggest = () => openHands(pick);
     pw.addEventListener("keydown", onKey); suggest.addEventListener("click", onSuggest);
   });
 }
@@ -253,7 +287,8 @@ addEventListener("pointermove", (e) => {
   const x = e.clientX / innerWidth - 0.5, y = e.clientY / innerHeight - 0.5;
   eyes.style.transform = `translate(calc(-50% + ${x * 26}px), calc(-50% + ${y * 16}px))`;
 });
-addEventListener("keydown", wake);
+addEventListener("keydown", (e) => { if (e.key === "Escape") closeHands(); wake(); });
+pw.addEventListener("input", closeHands);
 addEventListener("pointerdown", wake);
 
 applyLang();
