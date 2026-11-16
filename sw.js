@@ -1,7 +1,7 @@
 "use strict";
 // Network first (so a new deploy shows up right away), cache as the offline fallback.
-const CACHE = "crypto-drop-v1";
-const ASSETS = ["/", "/index.html", "/style.css", "/app.js", "/crypto.js", "/argon2.js", "/words.js", "/sound.js",
+const CACHE = "crypto-drop-v2";
+const ASSETS = ["/", "/index.html", "/style.css", "/app.js", "/crypto.js", "/argon2.js", "/words.js", "/sound.js", "/qr.js", "/how.html", "/how.css", "/how.js",
   "/eyes.jpg", "/hand.jpg", "/fist.jpg", "/hands.png", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png"];
 
 self.addEventListener("install", (e) => {
