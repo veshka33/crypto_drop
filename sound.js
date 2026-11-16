@@ -96,6 +96,15 @@
       tone(0, 0.8, { type: "sawtooth", f0: 104, g: 0.2, lp: 500 });
       noise(0, 0.6, { f0: 300, g: 0.12 });
     },
+    ignite() {
+      tone(0, 0.05, { type: "square", f0: 2400, f1: 1800, g: 0.08 });
+      tone(0.09, 0.05, { type: "square", f0: 1600, f1: 1200, g: 0.07 });
+      noise(0.12, 0.3, { type: "highpass", f0: 1500, f1: 3000, g: 0.12, attack: 0.03 });
+    },
+    crackle(dur = 1.2) {
+      noise(0, dur, { type: "bandpass", f0: 900, f1: 600, q: 0.7, g: 0.18, attack: 0.15 });
+      for (let i = 0; i < 22; i++) noise(rnd(0, dur), rnd(0.012, 0.03), { type: "highpass", f0: rnd(2500, 5500), g: rnd(0.12, 0.3), attack: 0.002 });
+    },
     whisper(dur) { noise(0, Math.max(0.5, dur), { type: "bandpass", f0: 3000, f1: 4500, q: 1.2, g: 0.16, attack: 0.3 }); },
     // test helper: render one sound offline and return its samples
     async _render(name, secs) {
