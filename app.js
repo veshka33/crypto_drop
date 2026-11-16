@@ -20,7 +20,7 @@ const T = {
     broke: "something broke. try again.", heavy: "too heavy. 500 MB, at most.", heavy4: "too heavy. 4 GB, at most.",
     many: "too many files.", empty: "there is nothing in there.",
     keep: "keep it. it cannot be recovered. tap to copy.",
-    hideName: "hide the name?", hideExt: "hide the extension?", clean: "strip the hidden data from the photo?",
+    burn: "burn what should be hidden.", done: "done", clean: "strip the hidden data from the photo?",
     askKey: "add a key file?", pickKey: "choose it.", needKey: "this one needs a key file.", chooseFile: "choose file", skip: "skip",
     saveWhere: "where should i put it?", chooseSpot: "choose a place",
     yes: "yes", no: "no", suggest: "suggest one", taken: "files taken: ", filesw: "files", textw: "text", share: "share", qr: "qr",
@@ -33,7 +33,7 @@ const T = {
     broke: "щось зламалось. спробуй ще.", heavy: "надто важкий. не більше 500 МБ.", heavy4: "надто важкий. не більше 4 ГБ.",
     many: "забагато файлів.", empty: "там порожньо.",
     keep: "запам’ятай. відновити не вийде. торкнись, щоб скопіювати.",
-    hideName: "сховати ім’я?", hideExt: "сховати розширення?", clean: "прибрати з фото приховані дані?",
+    burn: "спали те, що треба сховати.", done: "готово", clean: "прибрати з фото приховані дані?",
     askKey: "додати файл-ключ?", pickKey: "обери його.", needKey: "цьому потрібен файл-ключ.", chooseFile: "обрати файл", skip: "пропустити",
     saveWhere: "куди це покласти?", chooseSpot: "обрати місце",
     yes: "так", no: "ні", suggest: "запропонувати", taken: "файлів забрано: ", filesw: "файлів", textw: "текст", share: "поділитись", qr: "qr",
@@ -46,7 +46,7 @@ const T = {
     broke: "что-то сломалось. попробуй ещё.", heavy: "слишком тяжёлый. не больше 500 МБ.", heavy4: "слишком тяжёлый. не больше 4 ГБ.",
     many: "слишком много файлов.", empty: "там пусто.",
     keep: "запомни. восстановить нельзя. нажми, чтобы скопировать.",
-    hideName: "скрыть имя?", hideExt: "скрыть расширение?", clean: "убрать из фото скрытые данные?",
+    burn: "сожги то, что нужно скрыть.", done: "готово", clean: "убрать из фото скрытые данные?",
     askKey: "добавить файл-ключ?", pickKey: "выбери его.", needKey: "этому нужен файл-ключ.", chooseFile: "выбрать файл", skip: "пропустить",
     saveWhere: "куда это положить?", chooseSpot: "выбрать место",
     yes: "да", no: "нет", suggest: "предложить", taken: "файлов забрано: ", filesw: "файлов", textw: "текст", share: "поделиться", qr: "qr",
@@ -105,7 +105,7 @@ function applyLang() {
   pw.setAttribute("aria-label", t("pwlabel"));
   suggest.textContent = t("suggest");
   $("hands").setAttribute("aria-label", t("choose"));
-  $("yes").textContent = t("yes"); $("no").textContent = t("no"); $("skip").textContent = t("skip");
+  $("pdone").textContent = t("done"); $("yes").textContent = t("yes"); $("no").textContent = t("no"); $("skip").textContent = t("skip");
   $("snd").textContent = t("sound"); $("src").textContent = t("code"); $("info").textContent = t("info"); $("fld").textContent = t("fld");
   shareBtn.textContent = t("share"); qrBtn.textContent = t("qr");
   document.querySelectorAll(".lang button[data-l]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.l === lang)));
@@ -215,6 +215,68 @@ async function askYesNo(key) {
     yes.onclick = () => done(true); no.onclick = () => done(false);
   });
 }
+// the file name is shown in pieces: hold the lighter to the extension and it burns away,
+// hold it to the name and it burns and comes back as a random one
+const lighter = $("lighter"), plate = $("plate"), pname = $("pname"), pext = $("pext"), pdone = $("pdone");
+const FLAME = { x: 0.566, y: 0.222 };                       // where the flame sits inside lighter.png (fractions)
+function moveLighter(x, y, instant) {
+  const w = lighter.offsetWidth || 180;
+  lighter.style.transition = instant || RM ? "none" : "";
+  lighter.style.transform = `translate(${x - FLAME.x * w}px, ${y - FLAME.y * w}px)`;
+}
+function addFlames(el) {
+  const n = Math.max(2, Math.round(el.offsetWidth / 22));
+  for (let i = 0; i < n; i++) {
+    const f = document.createElement("i"); f.className = "fl";
+    f.style.left = ((i + 0.5) / n * 100) + "%"; f.style.animationDelay = (-Math.random() * 0.5) + "s";
+    el.append(f);
+  }
+}
+async function askBurn(probe) {
+  const { base, ext } = Vault.splitName(probe), st = { name: false, ext: false, rand: Vault.randomName() };
+  let burning = false, lit = false;
+  const reset = (el, text) => { el.className = "part"; el.style.cssText = ""; el.replaceChildren(document.createTextNode(text)); };
+  reset(pname, base); reset(pext, ext); pext.hidden = !ext; pname.hidden = false;
+  speak("burn"); plate.hidden = false;
+  moveLighter(innerWidth + 40, innerHeight + 40, true); lighter.classList.add("on");
+  requestAnimationFrame(() => moveLighter(innerWidth * 0.78, innerHeight * 0.84));
+  const setLit = (on) => { if (on === lit) return; lit = on; lighter.classList.toggle("lit", on); if (on) { sfx("ignite"); buzz(20); } };
+  const onMove = (e) => {
+    if (burning || e.pointerType === "touch") return;
+    moveLighter(e.clientX, e.clientY + (lighter.offsetWidth || 180) * 0.13);   // flame under the word, so the lid does not hide it
+    setLit(!!e.target.closest(".part:not(.done)"));
+  };
+  addEventListener("pointermove", onMove);
+  const burn = async (el, kind) => {
+    if (burning || el.classList.contains("done")) return;
+    burning = true;
+    const r = el.getBoundingClientRect();
+    moveLighter(r.left + r.width / 2, r.bottom + (lighter.offsetWidth || 180) * 0.03);
+    await sleep(320); setLit(true); await sleep(260);
+    setMood("wide"); el.classList.add("burning"); addFlames(el); sfx("crackle", 1.3); buzz([30, 40, 30]);
+    await sleep(1400);
+    el.querySelectorAll(".fl").forEach((f) => f.remove());
+    if (kind === "name") { el.textContent = st.rand; el.classList.remove("burning"); el.classList.add("born", "done"); st.name = true; }
+    else {
+      el.classList.add("done"); st.ext = true;
+      el.style.maxWidth = el.offsetWidth + "px"; void el.offsetWidth;
+      el.style.transition = "max-width .4s, padding .4s"; el.style.maxWidth = "0"; el.style.padding = "0"; el.style.overflow = "hidden";
+      await sleep(420); el.hidden = true;
+    }
+    setLit(false); setMood(""); burning = false;
+    if (!RM) moveLighter(innerWidth * 0.78, innerHeight * 0.84);
+  };
+  pname.onclick = () => burn(pname, "name"); pext.onclick = () => burn(pext, "ext");
+  pname.focus();
+  return new Promise((res) => {
+    pdone.onclick = async () => {
+      while (burning) await sleep(100);
+      removeEventListener("pointermove", onMove); pname.onclick = pext.onclick = pdone.onclick = null;
+      plate.hidden = true; lighter.classList.remove("on", "lit"); sfx("pluck");
+      res({ hideName: st.name, hideExt: st.ext, outerName: (st.name ? st.rand : base) + (st.ext ? "" : ext) + ".enc" });
+    };
+  });
+}
 // a key file: opened straight from the "yes" click (optional) or from a button (required when decrypting)
 function askKeyFile(required) {
   keyInput.value = "";
@@ -237,8 +299,7 @@ async function askOptions(job) {
     if (r && await askYesNo("clean")) o.file = r.blob;
   }
   const probe = single ? first.name : job.archiveName + ".zip";
-  o.hideName = await askYesNo("hideName");
-  if (Vault.splitName(probe).ext) o.hideExt = await askYesNo("hideExt");
+  Object.assign(o, await askBurn(probe));
   if (await askYesNo("askKey")) {
     const f = await askKeyFile(false);
     if (f) o.keyDigest = await Vault.keyDigest(f);      // throws if the file is unusable: better to stop than to encrypt without it
@@ -285,7 +346,7 @@ function work(job, pass, decrypting, o) {
   if (job.type === "text") return decrypting ? Vault.decryptText(job.text, pass, setP) : Vault.encryptText(job.text, pass, setP);
   const f0 = job.entries[0].file;
   if (decrypting) return Vault.decrypt(f0, pass, setP, { keyDigest: o.keyDigest, getSink: o.getSink });
-  const common = { hideName: o.hideName, hideExt: o.hideExt, keyDigest: o.keyDigest, sink: o.sink };
+  const common = { hideName: o.hideName, hideExt: o.hideExt, outerName: o.outerName, keyDigest: o.keyDigest, sink: o.sink };
   if (job.isArchive) return Vault.encryptFiles(job.entries, pass, setP, { ...common, archiveName: job.archiveName });
   return Vault.encryptFile(o.file ? new File([o.file], f0.name, { type: f0.type }) : f0, pass, setP, common);
 }
@@ -342,7 +403,7 @@ async function run(job) {
       const password = await getPassword(encrypting);
       if (encrypting && !isText && !asked) {
         Object.assign(o, await askOptions(job)); asked = true;
-        if (useFs) o.sink = await pickSink(Vault.outerName(o.probe, o));
+        if (useFs) o.sink = await pickSink(o.outerName);
       }
       if (decrypting && useFs) o.getSink = (meta) => pickSink(meta.name);
       token++; shown = null; say.className = ""; say.textContent = "...";
