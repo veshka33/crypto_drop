@@ -38,6 +38,10 @@
   <input id="pw" type="password" aria-label="Password" autocomplete="off" enterkeyhint="go" tabindex="-1">
   <button id="suggest" class="ghost" type="button" hidden>suggest one</button>
   <button id="phrase" type="button" hidden></button>
+  <div id="plate" class="plate" hidden>
+    <div class="plate-name"><button id="pname" class="part" type="button"></button><button id="pext" class="part" type="button"></button><span class="part-enc">.enc</span></div>
+    <button id="pdone" class="ghost" type="button">done</button>
+  </div>
   <div id="choice" class="choice" hidden>
     <button id="yes" class="ghost" type="button">yes</button>
     <button id="no" class="ghost" type="button">no</button>
@@ -58,6 +62,8 @@
 <div id="hands" class="hands" role="group" aria-label="Choose a passphrase">
   <img class="hands-img" src="hands.png" alt="" width="900" height="506">
 </div>
+
+<div id="lighter" class="lighter" aria-hidden="true"><img src="lighter.png" alt="" width="560" height="562"><i class="flame"></i></div>
 
 <div id="chip" class="chip" aria-hidden="true"></div>
 <button id="hand" class="hand" type="button" aria-label="Choose files to encrypt or decrypt">
