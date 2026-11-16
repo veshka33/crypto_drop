@@ -14,6 +14,7 @@
 <script src="words.js" defer></script>
 <script src="argon2.js" defer></script>
 <script src="crypto.js" defer></script>
+<script src="qr.js" defer></script>
 <script src="sound.js" defer></script>
 <script src="app.js" defer></script>
 </head>
@@ -22,6 +23,8 @@
 <p id="note" class="note">Your files never leave your browser.</p>
 <nav class="lang" aria-label="Language">
   <a id="src" href="https://github.com/veshka33/crypto_drop" target="_blank" rel="noopener noreferrer">code</a>
+  <a id="info" href="how.html">info</a>
+  <button id="fld" type="button">folder</button>
   <button id="snd" type="button" aria-pressed="false">sound</button>
   <button type="button" data-l="en" aria-pressed="true">en</button>
   <button type="button" data-l="uk" aria-pressed="false">uk</button>
@@ -39,8 +42,17 @@
     <button id="yes" class="ghost" type="button">yes</button>
     <button id="no" class="ghost" type="button">no</button>
   </div>
+  <div id="actrow" class="choice" hidden>
+    <button id="act" class="ghost" type="button">choose file</button>
+    <button id="skip" class="ghost" type="button">skip</button>
+  </div>
   <a id="out" hidden></a>
   <button id="textout" class="textout" type="button" hidden></button>
+  <div id="extras" class="choice" hidden>
+    <button id="share" class="ghost" type="button" hidden>share</button>
+    <button id="qrbtn" class="ghost" type="button" hidden>qr</button>
+  </div>
+  <div id="qr" class="qr" hidden></div>
 </div>
 
 <div id="hands" class="hands" role="group" aria-label="Choose a passphrase">
@@ -48,7 +60,7 @@
 </div>
 
 <div id="chip" class="chip" aria-hidden="true"></div>
-<button id="hand" class="hand" type="button" aria-label="Choose a file to encrypt or decrypt">
+<button id="hand" class="hand" type="button" aria-label="Choose files to encrypt or decrypt">
   <span class="bob">
     <img class="open" src="hand.jpg" alt="" width="300" height="301">
     <img class="fist" src="fist.jpg" alt="" width="1024" height="1027">
@@ -57,5 +69,7 @@
 
 <p id="sr" class="sr" aria-live="polite"></p>
 <input id="file" type="file" multiple hidden>
+<input id="dir" type="file" webkitdirectory hidden>
+<input id="keyfile" type="file" hidden>
 </body>
 </html>
