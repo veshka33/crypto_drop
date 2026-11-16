@@ -105,7 +105,8 @@
     try { await seal(joinStream(head, data), secretOf(pw, o.keyDigest), (o.keyDigest ? F_KEY : 0) | (gz ? F_GZ : 0), sink); }
     catch (e) { if (sink.abort) await sink.abort(); throw e; }
     if (progress) progress(1);
-    return o.sink ? { saved: true, name: outerName(name, o) } : { blob: sink.blob(), name: outerName(name, o) };
+    const outer = o.outerName || outerName(name, o);
+    return o.sink ? { saved: true, name: outer } : { blob: sink.blob(), name: outer };
   }
 
   async function decrypt(src, pw, progress, o = {}) {
@@ -304,7 +305,7 @@
 
   g.Vault = {
     inspect, detect: async (f) => (await inspect(f)).ver,
-    keyDigest, splitName, outerName, stripMeta, shouldCompress,
+    keyDigest, splitName, outerName, randomName, stripMeta, shouldCompress,
     encryptFile: (f, pw, p, o = {}) => encryptBlob(f.name, f, pw, p, o),
     encryptFiles: async (entries, pw, p, o = {}) => encryptBlob((o.archiveName || "files") + ".zip", await zip(entries), pw, p, { ...o, forceCompress: true }),
     encryptText: async (text, pw) => {
