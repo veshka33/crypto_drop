@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#000000">
+<title>How it works</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="how.css">
+<script src="how.js" defer></script>
+</head>
+<body>
+<main>
+<div class="bar">
+  <a href="./">&larr;</a>
+  <span><button type="button" data-l="en" aria-pressed="true">en</button><button type="button" data-l="uk" aria-pressed="false">uk</button><button type="button" data-l="ru" aria-pressed="false">ru</button></span>
+</div>
+
+<article data-lang="en">
+<h1>How it works</h1>
+<p class="lead">Everything happens in your browser. A file is encrypted on your own device and is never uploaded.</p>
+
+<h2>What happens to your file</h2>
+<ol>
+<li>You drop a file, several files, a folder, or paste text. The hand takes it into the dark and asks for a password.</li>
+<li>The password (12 characters or more) is turned into a key with <code>Argon2id</code>, a deliberately slow, memory-hungry function that makes guessing expensive. You can also add a key file: its fingerprint is mixed into the key, so both the password and the file are needed.</li>
+<li>The data is cut into 1 MiB pieces and each piece is sealed with <code>AES-256-GCM</code>. A piece that was changed, swapped or cut off is detected when you open the file.</li>
+<li>The encrypted file comes back to you. The original name and extension are kept inside it, encrypted, and return when you decrypt.</li>
+</ol>
+
+<h2>Details</h2>
+<ul>
+<li><b>Compression.</b> Most files are compressed before encryption and often get smaller. Files that are already compressed (photos, video, zip, pdf) are left as they are.</li>
+<li><b>Name and extension.</b> You decide whether the outside of the encrypted file shows them. If hidden, the outside name is random.</li>
+<li><b>Photos.</b> JPEG and PNG can be cleaned of hidden data (GPS location, camera, comments) before encryption. The picture itself is not touched, and phone photos keep their rotation.</li>
+<li><b>Folders.</b> A folder becomes one zip file inside the encryption, with its structure kept.</li>
+<li><b>Big files.</b> In Chromium browsers (Chrome, Edge, Brave and similar) files up to 4 GB are streamed straight into a file you choose instead of being held in memory. In other browsers the limit is 500 MB.</li>
+<li><b>Text.</b> Encrypted text becomes a short string starting with <code>VS3.</code> that you can send anywhere or show as a QR code.</li>
+<li><b>Older files.</b> Files made by earlier versions of this site can still be opened.</li>
+</ul>
+
+<h2>What the server sees</h2>
+<p>Only a counter. When you encrypt something, the page asks for a one-time ticket and sends it back, and the number of files taken grows by one. For rate limits the server keeps a hash of your IP address, not the address itself. It never receives your files, names, sizes, passwords or keys. The hosting provider keeps ordinary access logs, like any website.</p>
+
+<h2>Be aware</h2>
+<ul>
+<li>A forgotten password cannot be recovered. Nobody can help, including the author.</li>
+<li>The key is only as strong as the password. Use a long phrase, for example one of the suggested six-word ones, and write it down somewhere safe.</li>
+<li>An encrypted file still shows its approximate size, and that it is encrypted.</li>
+<li>You are trusting the code this page runs. It is open (see <b>code</b> at the top of the main page), and every change is visible in its history.</li>
+<li>A key file must stay exactly as it is: changing a single byte makes it a different key.</li>
+</ul>
+</article>
+
+<article data-lang="uk" hidden>
+<h1>Як це працює</h1>
+<p class="lead">Усе відбувається у твоєму браузері. Файл шифрується на твоєму пристрої й нікуди не завантажується.</p>
+
+<h2>Що відбувається з файлом</h2>
+<ol>
+<li>Ти кидаєш файл, кілька файлів, теку або вставляєш текст. Рука забирає це в темряву й питає пароль.</li>
+<li>Пароль (від 12 символів) перетворюється на ключ через <code>Argon2id</code>: це навмисно повільна функція, що вимагає багато пам’яті, тому підбір пароля коштує дорого. Можна додати й файл-ключ: його відбиток підмішується до ключа, тож потрібні і пароль, і файл.</li>
+<li>Дані ріжуться на шматки по 1 МіБ, і кожен шматок запечатується через <code>AES-256-GCM</code>. Змінений, переставлений чи обрізаний шматок виявляється, коли відкриваєш файл.</li>
+<li>Ти отримуєш зашифрований файл. Початкове ім’я та розширення зберігаються всередині, у зашифрованому вигляді, і повертаються під час розшифрування.</li>
+</ol>
+
+<h2>Подробиці</h2>
+<ul>
+<li><b>Стиснення.</b> Більшість файлів стискаються перед шифруванням і часто стають меншими. Файли, які вже стиснуті (фото, відео, zip, pdf), лишаються як є.</li>
+<li><b>Ім’я та розширення.</b> Ти вирішуєш, чи показувати їх ззовні зашифрованого файлу. Якщо сховати, зовнішнє ім’я буде випадковим.</li>
+<li><b>Фото.</b> З JPEG і PNG перед шифруванням можна прибрати приховані дані (геолокацію, камеру, коментарі). Саме зображення не змінюється, а фото з телефона зберігають поворот.</li>
+<li><b>Теки.</b> Тека стає одним zip-файлом усередині шифрування, зі збереженою структурою.</li>
+<li><b>Великі файли.</b> У браузерах на Chromium (Chrome, Edge, Brave тощо) файли до 4 ГБ записуються потоком одразу у вибраний тобою файл, а не тримаються в пам’яті. В інших браузерах ліміт 500 МБ.</li>
+<li><b>Текст.</b> Зашифрований текст стає коротким рядком, що починається з <code>VS3.</code>; його можна надіслати куди завгодно або показати як QR-код.</li>
+<li><b>Старі файли.</b> Файли, зроблені попередніми версіями сайту, і далі відкриваються.</li>
+</ul>
+
+<h2>Що бачить сервер</h2>
+<p>Лише лічильник. Коли ти щось шифруєш, сторінка просить одноразовий квиток і надсилає його назад, а число забраних файлів збільшується на одиницю. Для обмежень частоти сервер зберігає хеш твоєї IP-адреси, а не саму адресу. Файли, імена, розміри, паролі й ключі до нього не потрапляють. Хостинг-провайдер веде звичайні журнали доступу, як і будь-який сайт.</p>
+
+<h2>Варто знати</h2>
+<ul>
+<li>Забутий пароль відновити неможливо. Ніхто не допоможе, і автор теж.</li>
+<li>Ключ настільки сильний, наскільки сильний пароль. Бери довгу фразу, наприклад одну з запропонованих із шести слів, і запиши її в надійному місці.</li>
+<li>Зашифрований файл усе одно показує свій приблизний розмір і те, що він зашифрований.</li>
+<li>Ти довіряєш коду, який виконує ця сторінка. Він відкритий (дивись <b>код</b> угорі на головній сторінці), і кожна зміна видна в його історії.</li>
+<li>Файл-ключ має лишатися точно таким, яким був: зміна навіть одного байта робить його іншим ключем.</li>
+</ul>
+</article>
+
+<article data-lang="ru" hidden>
+<h1>Как это работает</h1>
+<p class="lead">Всё происходит в твоём браузере. Файл шифруется на твоём устройстве и никуда не загружается.</p>
+
+<h2>Что происходит с файлом</h2>
+<ol>
+<li>Ты бросаешь файл, несколько файлов, папку или вставляешь текст. Рука забирает это в темноту и спрашивает пароль.</li>
+<li>Пароль (от 12 символов) превращается в ключ через <code>Argon2id</code>: это намеренно медленная функция, которой нужно много памяти, поэтому подбор пароля обходится дорого. Можно добавить и файл-ключ: его отпечаток подмешивается к ключу, так что нужны и пароль, и файл.</li>
+<li>Данные режутся на куски по 1 МиБ, и каждый кусок запечатывается через <code>AES-256-GCM</code>. Изменённый, переставленный или обрезанный кусок обнаруживается, когда открываешь файл.</li>
+<li>Ты получаешь зашифрованный файл. Исходное имя и расширение хранятся внутри, в зашифрованном виде, и возвращаются при расшифровке.</li>
+</ol>
+
+<h2>Подробности</h2>
+<ul>
+<li><b>Сжатие.</b> Большинство файлов сжимается перед шифрованием и часто становится меньше. Уже сжатые файлы (фото, видео, zip, pdf) остаются как есть.</li>
+<li><b>Имя и расширение.</b> Ты решаешь, показывать ли их снаружи зашифрованного файла. Если скрыть, внешнее имя будет случайным.</li>
+<li><b>Фото.</b> Из JPEG и PNG перед шифрованием можно убрать скрытые данные (геолокацию, камеру, комментарии). Само изображение не меняется, а фото с телефона сохраняют поворот.</li>
+<li><b>Папки.</b> Папка становится одним zip-файлом внутри шифрования, со своей структурой.</li>
+<li><b>Большие файлы.</b> В браузерах на Chromium (Chrome, Edge, Brave и подобные) файлы до 4 ГБ записываются потоком сразу в выбранный тобой файл, а не держатся в памяти. В других браузерах предел 500 МБ.</li>
+<li><b>Текст.</b> Зашифрованный текст становится короткой строкой, которая начинается с <code>VS3.</code>; её можно отправить куда угодно или показать как QR-код.</li>
+<li><b>Старые файлы.</b> Файлы, сделанные прежними версиями сайта, по-прежнему открываются.</li>
+</ul>
+
+<h2>Что видит сервер</h2>
+<p>Только счётчик. Когда ты что-то шифруешь, страница просит одноразовый билет и отправляет его обратно, а число забранных файлов растёт на единицу. Для ограничений частоты сервер хранит хеш твоего IP-адреса, а не сам адрес. Файлы, имена, размеры, пароли и ключи к нему не попадают. Хостинг-провайдер ведёт обычные журналы доступа, как любой сайт.</p>
+
+<h2>Что стоит знать</h2>
+<ul>
+<li>Забытый пароль восстановить нельзя. Никто не поможет, и автор тоже.</li>
+<li>Ключ настолько силён, насколько силён пароль. Бери длинную фразу, например одну из предложенных из шести слов, и запиши её в надёжном месте.</li>
+<li>Зашифрованный файл всё равно показывает свой примерный размер и то, что он зашифрован.</li>
+<li>Ты доверяешь коду, который выполняет эта страница. Он открыт (смотри <b>код</b> вверху главной страницы), и каждое изменение видно в его истории.</li>
+<li>Файл-ключ должен оставаться точно таким, каким был: изменение даже одного байта делает его другим ключом.</li>
+</ul>
+</article>
+</main>
+</body>
+</html>
