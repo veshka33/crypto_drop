@@ -130,7 +130,25 @@ module.exports = async function () {
   A.paste(cipher); await A.prompt("what password?"); A.submit("text-pass-phrase-1"); await A.until(() => $("textout").textContent === "секретний текст 🔒", "text decrypted"); await A.idle();
   ok(true, "pasted ciphertext decrypts to the original text");
 
-  w.document.querySelector('[data-l="ru"]').click(); ok($("fld").textContent === "папка" && $("say").textContent.includes("держи"), "language switch updates buttons and the current line");
+  // share button: text, files, and failures that must not be silent
+  const shares = []; let shareMode = "ok";
+  Object.defineProperty(w.navigator, "share", { value: async (d) => { shares.push(d); if (shareMode === "denied") throw Object.assign(new Error("x"), { name: "NotAllowedError" }); if (shareMode === "closed") throw Object.assign(new Error("x"), { name: "AbortError" }); }, configurable: true });
+  Object.defineProperty(w.navigator, "canShare", { value: (d) => d.files.every((f) => /^(text|image|audio|video)\//.test(f.type) || f.type === "application/pdf"), configurable: true });   // like Chromium: .enc is not shareable as it is
+  A.paste("share me"); await A.prompt("what password?"); A.submit("share-pass-1234567"); await A.prompt("again."); A.submit("share-pass-1234567"); encryptions++;
+  await A.until(() => !$("textout").hidden && !$("share").hidden, "share offered for text"); await A.idle();
+  const shareText = $("textout").textContent;
+  $("share").click(); await sleep(50); ok(shares.at(-1) && shares.at(-1).text === shareText, "share: the encrypted text is handed to the system share sheet");
+  shareMode = "denied"; $("share").click(); await A.until(() => /sharing failed/.test($("say").textContent), "message after a refused share");
+  ok(/tap the text to copy it/.test($("say").textContent), "share refused: the person is told what to do (no silent failure)");
+  shareMode = "closed"; const before = $("say").textContent; $("share").click(); await sleep(80); ok($("say").textContent === before, "closing the share sheet is not treated as an error");
+  shareMode = "ok"; shares.length = 0;
+  await A.enc([file("data for sharing", "note.txt")], "share-pass-1234567", [{ name: false, ext: false }, ["add a key file?", false]]); encryptions++;
+  await A.result(); await A.idle(); await A.until(() => !$("share").hidden, "share offered for a file");
+  $("share").click(); await sleep(50);
+  ok(shares.length === 1 && shares[0].files[0].name === "note.txt.enc.txt" && shares[0].files[0].type === "text/plain", "file share: .enc is not shareable, so it is offered as note.txt.enc.txt (the site still opens it)");
+  shareMode = "denied"; $("share").click(); await A.until(() => /cannot share it/.test($("say").textContent), "file share refused message"); ok(true, "file share refused: told to use the file link");
+
+  w.document.querySelector('[data-l="ru"]').click(); ok($("fld").textContent === "папка" && $("say").textContent === "этот браузер не может этим поделиться. используй ссылку на файл.", "language switch updates buttons and the current line");
   ok(A.posts.length === encryptions && A.posts.every((p) => /"token":"tok\d+"/.test(p)), `counter: ${encryptions} encryptions -> ${A.posts.length} tickets sent (decryptions send none)`);
   ok(A.errs.length === 0, "no script errors" + (A.errs.length ? ": " + A.errs[0] : ""));
   w.close();
