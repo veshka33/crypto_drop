@@ -17,6 +17,7 @@ const T = {
     short: "too short. twelve characters, at least.", again: "again.", mismatch: "no. from the start.",
     wrong: "wrong.", wrong2: "that is not it.", wrong3: "i can wait.", wrong5: "you do not know it, do you?", wrong7: "stop.",
     here: "here.", hereText: "here. tap to copy.", saved: "here. it is on your disk.", never: "never mind.",
+    shareCopied: "sharing failed. copied instead.", shareFailText: "sharing failed. tap the text to copy it.", shareFailFile: "this browser cannot share it. use the file link.",
     broke: "something broke. try again.", heavy: "too heavy. 500 MB, at most.", heavy4: "too heavy. 4 GB, at most.",
     many: "too many files.", empty: "there is nothing in there.",
     keep: "keep it. it cannot be recovered. tap to copy.",
@@ -30,6 +31,7 @@ const T = {
     short: "закороткий. щонайменше дванадцять символів.", again: "ще раз.", mismatch: "ні. спочатку.",
     wrong: "не той.", wrong2: "це не воно.", wrong3: "я почекаю.", wrong5: "ти ж його не знаєш, так?", wrong7: "годі.",
     here: "тримай.", hereText: "тримай. торкнись, щоб скопіювати.", saved: "тримай. воно на диску.", never: "байдуже.",
+    shareCopied: "не вдалося поділитись. скопійовано.", shareFailText: "не вдалося поділитись. торкнись тексту, щоб скопіювати.", shareFailFile: "цей браузер не може цим поділитись. скористайся посиланням на файл.",
     broke: "щось зламалось. спробуй ще.", heavy: "надто важкий. не більше 500 МБ.", heavy4: "надто важкий. не більше 4 ГБ.",
     many: "забагато файлів.", empty: "там порожньо.",
     keep: "запам’ятай. відновити не вийде. торкнись, щоб скопіювати.",
@@ -43,6 +45,7 @@ const T = {
     short: "слишком короткий. минимум двенадцать символов.", again: "ещё раз.", mismatch: "нет. сначала.",
     wrong: "не тот.", wrong2: "это не то.", wrong3: "я подожду.", wrong5: "ты ведь его не знаешь?", wrong7: "хватит.",
     here: "держи.", hereText: "держи. нажми, чтобы скопировать.", saved: "держи. оно на диске.", never: "неважно.",
+    shareCopied: "не удалось поделиться. скопировано.", shareFailText: "не удалось поделиться. нажми на текст, чтобы скопировать.", shareFailFile: "этот браузер не может этим поделиться. используй ссылку на файл.",
     broke: "что-то сломалось. попробуй ещё.", heavy: "слишком тяжёлый. не больше 500 МБ.", heavy4: "слишком тяжёлый. не больше 4 ГБ.",
     many: "слишком много файлов.", empty: "там пусто.",
     keep: "запомни. восстановить нельзя. нажми, чтобы скопировать.",
@@ -353,8 +356,8 @@ function work(job, pass, decrypting, o) {
 function showExtras(result, encrypted) {
   shareData = null; qrText = ""; shareBtn.hidden = qrBtn.hidden = true; qrBox.hidden = true;
   if (encrypted && navigator.share) {
-    if (result.text !== undefined) { shareData = { text: result.text }; }
-    else if (result.blob && navigator.canShare) { try { const f = new File([result.blob], result.name); if (navigator.canShare({ files: [f] })) shareData = { files: [f] }; } catch {} }
+    if (result.text !== undefined) shareData = { kind: "text", text: result.text };
+    else if (result.blob) shareData = { kind: "file", blob: result.blob, name: result.name };
     shareBtn.hidden = !shareData;
   }
   if (encrypted && result.text !== undefined && result.text.length <= 700 && window.qrcode) { qrText = result.text; qrBtn.hidden = false; }
@@ -517,7 +520,28 @@ addEventListener("paste", (e) => {
 const copyOf = (el) => () => { try { navigator.clipboard.writeText(el.textContent); } catch {} };
 phrase.addEventListener("click", copyOf(phrase));
 textout.addEventListener("click", copyOf(textout));
-shareBtn.addEventListener("click", () => { if (shareData) navigator.share(shareData).catch(() => {}); });
+// browsers only let pages share a few file types (images, audio, video, pdf, text), so a .enc file is first tried as it is, then as the
+// same bytes named "*.enc.txt" (this site recognises an encrypted file by its content, not by its name). Failures are never silent.
+async function doShare() {
+  const d = shareData;
+  if (!d) return;
+  try {
+    if (d.kind === "text") await navigator.share({ text: d.text });
+    else {
+      const tries = [new File([d.blob], d.name, { type: "application/octet-stream" }), new File([d.blob], d.name + ".txt", { type: "text/plain" })];
+      const f = navigator.canShare ? tries.find((x) => navigator.canShare({ files: [x] })) : null;
+      if (!f) throw new Error("unsupported");
+      await navigator.share({ files: [f] });
+    }
+  } catch (e) {
+    if (e && e.name === "AbortError") return;                   // the person simply closed the share sheet
+    if (d.kind === "file") { speak("shareFailFile"); return; }
+    let copied = false;
+    try { await navigator.clipboard.writeText(d.text); copied = true; } catch {}
+    speak(copied ? "shareCopied" : "shareFailText");
+  }
+}
+shareBtn.addEventListener("click", doShare);
 qrBtn.addEventListener("click", () => {
   if (!qrBox.hidden) { qrBox.hidden = true; return; }
   try {
