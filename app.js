@@ -607,7 +607,29 @@ $("inst").addEventListener("click", async () => {
   try { await e.prompt(); } catch {}
 });
 
+// files or text shared from another app arrive as /?shared=<stamp>; take them out of the private cache at once
+async function takeShared() {
+  const m = /[?&]shared=(\d+)/.exec(location.search);
+  if (!m) return;
+  history.replaceState(null, "", location.pathname);
+  try {
+    const cache = await caches.open("crypto-drop-share"), found = [];
+    for (const req of await cache.keys()) { const k = new RegExp("/shared/" + m[1] + "-(\\w+)$").exec(req.url); if (k) found.push({ req, idx: k[1] }); }
+    found.sort((a, b) => (a.idx === "text") - (b.idx === "text") || a.idx - b.idx);
+    const files = [], texts = [];
+    for (const { req } of found) {
+      const r = await cache.match(req);
+      if (r.headers.get("X-Kind") === "text") texts.push(await r.text());
+      else files.push(new File([await r.blob()], decodeURIComponent(r.headers.get("X-Name") || "shared"), { type: r.headers.get("Content-Type") || "" }));
+      await cache.delete(req);
+    }
+    if (files.length) run(jobFromFiles(files));
+    else if (texts[0] && texts[0].trim()) run({ type: "text", text: texts[0] });
+  } catch {}
+}
+
 applyLang();
 speak("hint", true);
 countCall();
 wake();
+takeShared();
