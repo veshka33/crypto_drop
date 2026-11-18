@@ -4,8 +4,8 @@ const fs = require("fs"), path = require("path"), nodeCrypto = require("crypto")
 const { JSDOM, VirtualConsole } = require("jsdom");
 const { root, ok, section, sleep, bytes, buf, readZip, makeJpeg } = require("./helpers");
 
-function makeDom({ stream = false } = {}) {
-  const dom = new JSDOM(fs.readFileSync(path.join(root, "index.html"), "utf8"), { runScripts: "outside-only", pretendToBeVisual: true, url: "https://x.app/", virtualConsole: new VirtualConsole() });
+function makeDom({ stream = false, shared = null } = {}) {
+  const dom = new JSDOM(fs.readFileSync(path.join(root, "index.html"), "utf8"), { runScripts: "outside-only", pretendToBeVisual: true, url: "https://x.app/" + (shared ? "?shared=" + shared.stamp : ""), virtualConsole: new VirtualConsole() });
   const w = dom.window, errs = [], posts = [], blobs = [], picks = [], writes = [], st = { pick: "ok" };
   w.addEventListener("error", (e) => errs.push(e.message)); process.on("unhandledRejection", (e) => errs.push("rejection: " + e));
   w.matchMedia = (q) => ({ matches: /reduced-motion/.test(q) });
@@ -14,6 +14,10 @@ function makeDom({ stream = false } = {}) {
   w.URL.createObjectURL = (b) => { blobs.push(b); return "blob:fake"; }; w.URL.revokeObjectURL = () => {};
   w.fetch = async (u, o) => { if (o && o.method === "POST") posts.push(o.body); return { ok: true, json: async () => (String(u).includes("challenge") ? { token: "tok" + posts.length } : { count: 7 }) }; };
   w.hashwasm = require(path.join(root, "argon2.js"));
+  const sharedStore = new Map();                      // a stand-in for the private cache the service worker fills
+  if (shared) shared.entries.forEach((e, i) => sharedStore.set("https://x.app/shared/" + shared.stamp + "-" + (e.kind === "text" ? "text" : i),
+    new Response(e.data, { headers: { "Content-Type": e.type || "text/plain", "X-Kind": e.kind, "X-Name": encodeURIComponent(e.name || "") } })));
+  w.caches = { open: async () => ({ keys: async () => [...sharedStore.keys()].map((u) => new Request(u)), match: async (r) => { const x = sharedStore.get(r.url); return x && x.clone(); }, delete: async (r) => sharedStore.delete(r.url) }) };
   w.launchQueue = { setConsumer: (fn) => { w.__launch = fn; } };
   if (stream) {
     w.__STREAM_MIN = 1;
@@ -28,7 +32,7 @@ function makeDom({ stream = false } = {}) {
   const $ = (id) => w.document.getElementById(id);
   const until = async (fn, m) => { for (let i = 0; i < 700; i++) { if (fn()) return; await sleep(25); } throw new Error("timeout: " + m); };
   const api = {
-    w, $, errs, posts, blobs, picks, writes, st, until,
+    w, $, errs, posts, blobs, picks, writes, st, until, sharedLeft: () => sharedStore.size,
     drop: (files) => { const ev = new w.Event("drop", { bubbles: true, cancelable: true }); ev.dataTransfer = { files, types: ["Files"] }; w.dispatchEvent(ev); },
     paste: (text) => { const ev = new w.Event("paste", { bubbles: true, cancelable: true }); ev.clipboardData = { files: [], getData: () => text }; w.dispatchEvent(ev); },
     prompt: (label) => until(() => $("pw").classList.contains("on") && $("say").textContent === label, "prompt: " + label),
@@ -174,6 +178,23 @@ module.exports = async function () {
   ok(A.posts.length === encryptions && A.posts.every((p) => /"token":"tok\d+"/.test(p)), `counter: ${encryptions} encryptions -> ${A.posts.length} tickets sent (decryptions send none)`);
   ok(A.errs.length === 0, "no script errors" + (A.errs.length ? ": " + A.errs[0] : ""));
   w.close();
+
+  // ===== files and text shared from other apps (Android share target)
+  section("page: shared from other apps");
+  const S1 = makeDom({ shared: { stamp: 111, entries: [{ kind: "file", name: "фото 1.jpg", type: "image/jpeg", data: "jpeg" }, { kind: "file", name: "b.txt", type: "text/plain", data: "b" }] } });
+  await S1.prompt("what password?");
+  ok(S1.$("chip").textContent.startsWith("2 files") && S1.w.location.search === "" && S1.sharedLeft() === 0, "two shared files wait at the hand as one archive; address cleaned; private cache emptied");
+  S1.submit("shared-pass-123456"); await S1.prompt("again."); S1.submit("shared-pass-123456"); await S1.burn({ name: false, ext: false }); await S1.answer("add a key file?", false);
+  await S1.result(); ok(S1.$("out").download === "files.zip.enc", "shared files are encrypted into files.zip.enc");
+  S1.w.close();
+  const S2 = makeDom({ shared: { stamp: 222, entries: [{ kind: "text", data: "shared secret" }] } });
+  await S2.prompt("what password?"); S2.submit("shared-text-pass-1"); await S2.prompt("again."); S2.submit("shared-text-pass-1"); await S2.until(() => !S2.$("textout").hidden, "text from another app");
+  ok(/^VS3\./.test(S2.$("textout").textContent), "shared text is encrypted into a VS3. string"); S2.w.close();
+  const S3 = makeDom({ shared: { stamp: 333, entries: [{ kind: "text", data: cipher }] } });
+  await S3.prompt("what password?"); S3.submit("text-pass-phrase-1"); await S3.until(() => S3.$("textout").textContent === "секретний текст 🔒", "shared ciphertext decrypts");
+  ok(true, "a shared encrypted string is recognised and decrypted"); S3.w.close();
+  const S4 = makeDom({ shared: { stamp: 444, entries: [] } }); await sleep(150);
+  ok(S4.$("say").textContent.startsWith("drop files") && S4.errs.length === 0, "an empty share changes nothing"); S4.w.close();
 
   // ===== big-file mode: results are streamed to a file chosen with the save dialog
   section("page: big files go straight to disk");
