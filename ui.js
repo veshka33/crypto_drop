@@ -14,6 +14,7 @@ function makeDom({ stream = false } = {}) {
   w.URL.createObjectURL = (b) => { blobs.push(b); return "blob:fake"; }; w.URL.revokeObjectURL = () => {};
   w.fetch = async (u, o) => { if (o && o.method === "POST") posts.push(o.body); return { ok: true, json: async () => (String(u).includes("challenge") ? { token: "tok" + posts.length } : { count: 7 }) }; };
   w.hashwasm = require(path.join(root, "argon2.js"));
+  w.launchQueue = { setConsumer: (fn) => { w.__launch = fn; } };
   if (stream) {
     w.__STREAM_MIN = 1;
     w.showSaveFilePicker = async (o) => {
@@ -129,6 +130,27 @@ module.exports = async function () {
   const cipher = $("textout").textContent; ok(/^VS3\./.test(cipher), "text -> VS3. string");
   A.paste(cipher); await A.prompt("what password?"); A.submit("text-pass-phrase-1"); await A.until(() => $("textout").textContent === "секретний текст 🔒", "text decrypted"); await A.idle();
   ok(true, "pasted ciphertext decrypts to the original text");
+
+  // installed app: double-clicking .enc files hands them to the page, one after another; a stray file is never encrypted by accident
+  const mkEnc = async (name, content, pw) => { const e = await w.Vault.encryptFile(file(content, name), pw); return file(e.blob, e.name); };
+  const l1 = await mkEnc("one.txt", "first", "launch-pass-1234"), l2 = await mkEnc("two.txt", "second", "launch-pass-1234");
+  ok(typeof w.__launch === "function", "the page registers for launched files");
+  w.__launch({ files: [{ getFile: async () => l1 }, { getFile: async () => l2 }, { getFile: async () => file("just text", "stray.enc") }] });
+  await A.prompt("what password?"); A.submit("launch-pass-1234"); await A.until(() => !$("out").hidden && $("out").download === "one.txt", "first launched file decrypted");
+  ok(Buffer.from(await A.blobs.at(-1).arrayBuffer()).toString() === "first", "launch: first file opened and decrypted");
+  await A.prompt("what password?"); A.submit("launch-pass-1234");              // the queue goes straight on to the second file
+  await A.until(() => $("out").download === "two.txt", "second launched file decrypted");
+  ok(Buffer.from(await A.blobs.at(-1).arrayBuffer()).toString() === "second", "launch: second file waited its turn and opened");
+  await A.until(() => $("say").textContent === "that is not an encrypted file.", "stray file refused");
+  ok(A.posts.length === encryptions, "launch: nothing was encrypted by accident");
+  await A.until(() => !$("pw").classList.contains("on") && w.document.body.dataset.state === "idle", "queue finished"); await sleep(200);
+  // install button: only on computers (fine pointer), only when the browser offers installation
+  const real = w.matchMedia; let prompted = 0;
+  const offer = () => { const ev = new w.Event("beforeinstallprompt", { cancelable: true }); ev.prompt = async () => { prompted++; }; w.dispatchEvent(ev); };
+  offer(); ok($("inst").hidden === true, "install button stays hidden on touch devices");
+  w.matchMedia = (q) => ({ matches: true }); offer(); ok($("inst").hidden === false, "install button appears on computers");
+  $("inst").click(); await sleep(30); ok(prompted === 1 && $("inst").hidden === true, "clicking it opens the browser's install dialog");
+  w.matchMedia = real;
 
   // share button: text, files, and failures that must not be silent
   const shares = []; let shareMode = "ok";
