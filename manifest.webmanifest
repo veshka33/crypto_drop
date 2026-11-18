@@ -1,6 +1,6 @@
 {
   "name": "crypto_drop",
-  "short_name": "drop",
+  "short_name": "crypto_drop",
   "description": "Encrypt and decrypt files in your browser. Nothing is uploaded.",
   "start_url": "/",
   "scope": "/",
@@ -42,5 +42,28 @@
       ],
       "launch_type": "single-client"
     }
-  ]
+  ],
+  "share_target": {
+    "action": "/share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "files",
+          "accept": [
+            "image/*",
+            "video/*",
+            "audio/*",
+            "text/*",
+            "application/*",
+            ".enc"
+          ]
+        }
+      ]
+    }
+  }
 }
