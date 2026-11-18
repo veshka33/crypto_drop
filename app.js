@@ -16,7 +16,7 @@ const T = {
   en: { hint: "drop files or a folder on the hand, or tap it. text can be pasted.", letgo: "let go.", pass: "what password?",
     short: "too short. twelve characters, at least.", again: "again.", mismatch: "no. from the start.",
     wrong: "wrong.", wrong2: "that is not it.", wrong3: "i can wait.", wrong5: "you do not know it, do you?", wrong7: "stop.",
-    here: "here.", hereText: "here. tap to copy.", saved: "here. it is on your disk.", never: "never mind.",
+    here: "here.", hereText: "here. tap to copy.", saved: "here. it is on your disk.", never: "never mind.", notEnc: "that is not an encrypted file.", install: "install",
     shareCopied: "sharing failed. copied instead.", shareFailText: "sharing failed. tap the text to copy it.", shareFailFile: "this browser cannot share it. use the file link.",
     broke: "something broke. try again.", heavy: "too heavy. 500 MB, at most.", heavy4: "too heavy. 4 GB, at most.",
     many: "too many files.", empty: "there is nothing in there.",
@@ -30,7 +30,7 @@ const T = {
   uk: { hint: "кидай файли чи теку на руку або торкнись її. текст можна вставити.", letgo: "відпускай.", pass: "який пароль?",
     short: "закороткий. щонайменше дванадцять символів.", again: "ще раз.", mismatch: "ні. спочатку.",
     wrong: "не той.", wrong2: "це не воно.", wrong3: "я почекаю.", wrong5: "ти ж його не знаєш, так?", wrong7: "годі.",
-    here: "тримай.", hereText: "тримай. торкнись, щоб скопіювати.", saved: "тримай. воно на диску.", never: "байдуже.",
+    here: "тримай.", hereText: "тримай. торкнись, щоб скопіювати.", saved: "тримай. воно на диску.", never: "байдуже.", notEnc: "це не зашифрований файл.", install: "встановити",
     shareCopied: "не вдалося поділитись. скопійовано.", shareFailText: "не вдалося поділитись. торкнись тексту, щоб скопіювати.", shareFailFile: "цей браузер не може цим поділитись. скористайся посиланням на файл.",
     broke: "щось зламалось. спробуй ще.", heavy: "надто важкий. не більше 500 МБ.", heavy4: "надто важкий. не більше 4 ГБ.",
     many: "забагато файлів.", empty: "там порожньо.",
@@ -44,7 +44,7 @@ const T = {
   ru: { hint: "бросай файлы или папку на руку или нажми на неё. текст можно вставить.", letgo: "отпускай.", pass: "какой пароль?",
     short: "слишком короткий. минимум двенадцать символов.", again: "ещё раз.", mismatch: "нет. сначала.",
     wrong: "не тот.", wrong2: "это не то.", wrong3: "я подожду.", wrong5: "ты ведь его не знаешь?", wrong7: "хватит.",
-    here: "держи.", hereText: "держи. нажми, чтобы скопировать.", saved: "держи. оно на диске.", never: "неважно.",
+    here: "держи.", hereText: "держи. нажми, чтобы скопировать.", saved: "держи. оно на диске.", never: "неважно.", notEnc: "это не зашифрованный файл.", install: "установить",
     shareCopied: "не удалось поделиться. скопировано.", shareFailText: "не удалось поделиться. нажми на текст, чтобы скопировать.", shareFailFile: "этот браузер не может этим поделиться. используй ссылку на файл.",
     broke: "что-то сломалось. попробуй ещё.", heavy: "слишком тяжёлый. не больше 500 МБ.", heavy4: "слишком тяжёлый. не больше 4 ГБ.",
     many: "слишком много файлов.", empty: "там пусто.",
@@ -109,7 +109,7 @@ function applyLang() {
   suggest.textContent = t("suggest");
   $("hands").setAttribute("aria-label", t("choose"));
   $("pdone").textContent = t("done"); $("yes").textContent = t("yes"); $("no").textContent = t("no"); $("skip").textContent = t("skip");
-  $("snd").textContent = t("sound"); $("src").textContent = t("code"); $("info").textContent = t("info"); $("fld").textContent = t("fld");
+  $("snd").textContent = t("sound"); $("inst").textContent = t("install"); $("src").textContent = t("code"); $("info").textContent = t("info"); $("fld").textContent = t("fld");
   shareBtn.textContent = t("share"); qrBtn.textContent = t("qr");
   document.querySelectorAll(".lang button[data-l]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.l === lang)));
   if (lastCount !== null) showCount(lastCount);
@@ -574,6 +574,38 @@ snd.addEventListener("click", () => {
 const unlock = () => { if (soundPref && window.Sfx && !Sfx.enabled) sfx("enable", true); };
 addEventListener("pointerdown", unlock); addEventListener("keydown", unlock);
 if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+
+// ---- installed app: double-clicking an .enc file opens it here (Chrome/Edge on a computer), several files wait in a queue
+const fileQueue = []; let draining = false;
+async function drainQueue() {
+  if (draining) return;
+  draining = true;
+  while (fileQueue.length) {
+    while (busy) await new Promise((r) => setTimeout(r, 200));
+    const f = fileQueue.shift();
+    const info = await Vault.inspect(f).catch(() => ({ ver: 0 }));
+    if (!info.ver) { await speak("notEnc"); await sleep(2500); speak("hint", true); continue; }   // never encrypt a stray file by accident
+    await run(jobFromFiles([f]));
+  }
+  draining = false;
+}
+if (window.launchQueue && launchQueue.setConsumer) {
+  launchQueue.setConsumer(async (params) => {
+    for (const h of params.files || []) { try { fileQueue.push(await h.getFile()); } catch {} }
+    drainQueue();
+  });
+}
+let installEvt = null;
+addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault(); installEvt = e;
+  if (matchMedia("(pointer: fine)").matches) $("inst").hidden = false;       // file association is a computer feature; on phones the menu stays short
+});
+addEventListener("appinstalled", () => { installEvt = null; $("inst").hidden = true; });
+$("inst").addEventListener("click", async () => {
+  const e = installEvt; if (!e) return;
+  installEvt = null; $("inst").hidden = true;
+  try { await e.prompt(); } catch {}
+});
 
 applyLang();
 speak("hint", true);
